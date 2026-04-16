@@ -87,7 +87,7 @@ Route::prefix('repairs')->name('repairs.')->group(function () {
 Route::get('/repair-types',  [RepairController::class, 'repairTypes'])->name('repair-types.search');
 Route::get('/products/autocomplete', [ProductController::class, 'autocomplete'])->name('products.autocomplete');
     Route::get('/products',              [ProductController::class, 'search'])->name('products.search');
-
+Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
 });
 
 

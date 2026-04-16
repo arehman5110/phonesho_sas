@@ -366,16 +366,17 @@
     @push('scripts')
         {{-- Config must come before repair scripts --}}
         <script>
-            window.REPAIR_CONFIG = {
-                routes: {
-                    repairTypes: '{{ route('repair-types.search') }}',
-                    products: '{{ route('products.search') }}',
-                    customers: '{{ route('customers.search') }}',
-                    customerStats: '/api/customers/{id}/stats',
-                    customerStore: '{{ route('customers.store') }}',
-                },
-                csrf: '{{ csrf_token() }}',
-            };
+           window.REPAIR_CONFIG = {
+    routes: {
+        repairTypes   : '{{ route("repair-types.search") }}',
+        products      : '{{ route("products.search") }}',
+        customers     : '{{ route("customers.search") }}',
+        customerStats : '/api/customers/{id}/stats',
+        customerStore : '{{ route("customers.store") }}',
+        customerUpdate: '/api/customers/{id}',
+    },
+    csrf: '{{ csrf_token() }}',
+};
 
             // Device card template for JS cloning
             window.__DEVICE_TEMPLATE__ = @json($deviceCardTemplate);

@@ -247,12 +247,13 @@ const POS = (() => {
         }
     }
 
-    async function _loadProducts(categoryId, brandId) {
+    async function _loadProducts(categoryId, brandId, search) {
         _showLoading(true);
         try {
             const params = new URLSearchParams();
             if (categoryId) params.set('category_id', categoryId);
             if (brandId)    params.set('brand_id',    brandId);
+            if (search)     params.set('search',      search);
 
             state.allProducts = await _fetch(
                 `${state.config.routes.products}?${params}`
@@ -364,12 +365,13 @@ const POS = (() => {
         const available = product.stock - cartQty;
         const isOOS     = product.stock <= 0;
         const isLow     = !isOOS && available <= (product.low_stock_alert || 5);
-
+        console.log(product);
+        
         const div       = document.createElement('div');
         div.id          = `product-card-${product.id}`;
         div.className   = `pos-card${cartQty > 0 ? ' in-cart' : ''}`;
         div.onclick     = () => addToCart(product.id);
-
+        // console.log(product)
         div.innerHTML = `
             ${cartQty > 0
                 ? `<div id="cart-qty-badge-${product.id}"

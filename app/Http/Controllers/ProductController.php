@@ -15,26 +15,38 @@ class ProductController extends Controller
     // Used by POS + repair parts search
     // -----------------------------------------------
     public function search(Request $request): JsonResponse
-    {
-        $shopId = auth()->user()->active_shop_id;
-        $term   = $request->input('search', '');
+{
+    $shopId = auth()->user()->active_shop_id;
+    $term   = $request->input('search', '');
 
-        $products = Product::where('shop_id', $shopId)
-            ->where('is_active', true)
-            ->with(['category', 'brand'])
-            ->when($term, fn($q) =>
-                $q->where('name', 'like', "%{$term}%")
-                  ->orWhere('sku', 'like', "%{$term}%")
-            )
-            ->orderBy('name')
-            ->limit(15)
-            ->get();
+    $query = Product::where('shop_id', $shopId)
+        ->where('is_active', true)
+        ->with(['category', 'brand']);
 
-        return response()->json(
-            $products->map(fn($p) => $this->_formatProduct($p))
-        );
+    // ── Filter by category ────────────────────────────────
+    if ($request->filled('category_id')) {
+        $query->where('category_id', $request->category_id);
     }
 
+    // ── Filter by brand ───────────────────────────────────
+    if ($request->filled('brand_id')) {
+        $query->where('brand_id', $request->brand_id);
+    }
+
+    // ── Text search ───────────────────────────────────────
+    if ($term) {
+        $query->where(function ($q) use ($term) {
+            $q->where('name', 'like', "%{$term}%")
+              ->orWhere('sku',  'like', "%{$term}%");
+        });
+    }
+
+    $products = $query->orderBy('name')->limit(50)->get();
+
+    return response()->json(
+        $products->map(fn($p) => $this->_formatProduct($p))
+    );
+}
     // -----------------------------------------------
     // GET /products/search?q=
     // Used by product name autocomplete on create/edit
@@ -278,15 +290,26 @@ class ProductController extends Controller
     // GET /api/brands
     // -----------------------------------------------
     public function brands(Request $request): JsonResponse
-    {
-        $shopId  = auth()->user()->active_shop_id;
-        $brands  = Brand::where('shop_id', $shopId)
-            ->active()
-            ->ordered()
-            ->get(['id', 'name', 'slug']);
+{
+    $shopId = auth()->user()->active_shop_id;
 
-        return response()->json($brands);
+    $query = Brand::where('shop_id', $shopId)->active()->ordered();
+
+    // If category_id is provided, only return brands that have
+    // products in that category
+    if ($request->filled('category_id')) {
+        $categoryId = $request->category_id;
+        $query->whereHas('products', fn($q) =>
+            $q->where('shop_id', $shopId)
+              ->where('category_id', $categoryId)
+              ->where('is_active', true)
+        );
     }
+
+    return response()->json(
+        $query->get(['id', 'name', 'slug'])
+    );
+}
 
     // -----------------------------------------------
     // Private — Format product for JSON
@@ -301,12 +324,12 @@ class ProductController extends Controller
             'category_id'     => $product->category_id,
             'brand'           => $product->brand?->name,
             'brand_id'        => $product->brand_id,
-            'price'           => (float) $product->price,
+            'price'           => (float) $product->sell_price,
             'cost_price'      => (float) $product->cost_price,
             'stock'           => (int) $product->stock,
             'low_stock_alert' => (int) $product->low_stock_alert,
             'is_active'       => (bool) $product->is_active,
-            'formatted_price' => '£' . number_format($product->price, 2),
+            'formatted_price' => '£' . number_format($product->sell_price, 2),
         ];
     }
 }

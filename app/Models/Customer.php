@@ -18,6 +18,7 @@ class Customer extends Model
         'address',
         'notes',
         'balance',
+        'notes',
     ];
 
     protected $casts = [
