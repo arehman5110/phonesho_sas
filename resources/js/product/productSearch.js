@@ -82,7 +82,11 @@ export function ProductSearch({
                 if (highlightedIndex >= 0 && results[highlightedIndex]) {
                     _select(results[highlightedIndex]);
                 } else {
-                    // No selection — keep typed value as new product
+                    // No dropdown selection — treat typed value as a new product name
+                    const typedName = inputEl.value.trim();
+                    if (typedName && typeof onSelect === 'function') {
+                        onSelect({ id: null, name: typedName, _isNew: true });
+                    }
                     close();
                 }
                 break;

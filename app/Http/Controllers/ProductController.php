@@ -73,19 +73,20 @@ class ProductController extends Controller
 
         return response()->json(
             $products->map(fn($p) => [
-                'id'            => $p->id,
-                'name'          => $p->name,
-                'sku'           => $p->sku,
-                'category_id'   => $p->category_id,
-                'category_name' => $p->category?->name,
-                'brand_id'      => $p->brand_id,
-                'brand_name'    => $p->brand?->name,
-                'price'         => (float) $p->price,
-                'cost_price'    => (float) $p->cost_price,
-                'stock'         => (int) $p->stock,
+                'id'              => $p->id,
+                'name'            => $p->name,
+                'sku'             => $p->sku,
+                'category_id'     => $p->category_id,
+                'category'        => $p->category?->name,   // matches productSearch.js expectation
+                'brand_id'        => $p->brand_id,
+                'brand'           => $p->brand?->name,       // matches productSearch.js expectation
+                'price'           => (float) ($p->sell_price ?? $p->price),
+                'cost_price'      => (float) $p->cost_price,
+                'stock'           => (int) $p->stock,
                 'low_stock_alert' => (int) $p->low_stock_alert,
-                'is_active'     => (bool) $p->is_active,
-                'formatted_price' => '£' . number_format($p->price, 2),
+                'is_active'       => (bool) $p->is_active,
+                'description'     => $p->description,
+                'formatted_price' => '£' . number_format($p->sell_price ?? $p->price, 2),
             ])
         );
     }
@@ -316,6 +317,8 @@ class ProductController extends Controller
     // -----------------------------------------------
     private function _formatProduct(Product $product): array
     {
+        $price = $product->sell_price ?? $product->price ?? 0;
+
         return [
             'id'              => $product->id,
             'name'            => $product->name,
@@ -324,12 +327,13 @@ class ProductController extends Controller
             'category_id'     => $product->category_id,
             'brand'           => $product->brand?->name,
             'brand_id'        => $product->brand_id,
-            'price'           => (float) $product->sell_price,
+            'price'           => (float) $price,
             'cost_price'      => (float) $product->cost_price,
             'stock'           => (int) $product->stock,
             'low_stock_alert' => (int) $product->low_stock_alert,
             'is_active'       => (bool) $product->is_active,
-            'formatted_price' => '£' . number_format($product->sell_price, 2),
+            'description'     => $product->description,
+            'formatted_price' => '£' . number_format($price, 2),
         ];
     }
 }

@@ -44,6 +44,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── On product selected from dropdown ─────
     function _onProductSelected(product) {
 
+        // If this is a newly typed name (not from dropdown), just keep it
+        // in the input and stay in create mode
+        if (product._isNew) {
+            _showToast(`New product: "${product.name}"`, 'success');
+            return;
+        }
+
         // Set hidden product ID — switches to edit mode
         if (productId) productId.value = product.id;
 
