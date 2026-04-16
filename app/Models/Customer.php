@@ -41,6 +41,18 @@ class Customer extends Model
         return $this->hasMany(CustomerTransaction::class);
     }
 
+    // Customer has many repairs
+    public function repairs()
+    {
+        return $this->hasMany(Repair::class);
+    }
+
+    // Customer has many sales
+    public function sales()
+    {
+        return $this->hasMany(Sale::class);
+    }
+
     // -----------------------------------------------
     // Scopes
     // -----------------------------------------------
@@ -91,6 +103,7 @@ class Customer extends Model
         if ($this->balance < 0) return 'credit';
         return 'clear';
     }
+
     // User created many customer transactions
     public function customerTransactions()
     {

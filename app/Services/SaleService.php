@@ -75,7 +75,7 @@ class SaleService
                 $customer = \App\Models\Customer::find($sale->customer_id);
                 if ($customer?->email) {
                     try {
-                        \Illuminate\Support\Facades\Mail::to($customer->email)->queue(new \App\Mail\ReceiptMail($sale));
+                        \Illuminate\Support\Facades\Mail::to($customer->email)->queue(new \App\Mail\ReceiptMail($sale, null, null));
                     } catch (\Exception $e) {
                         // Don't fail the sale if email fails
                         \Illuminate\Support\Facades\Log::warning('Receipt email failed: ' . $e->getMessage());

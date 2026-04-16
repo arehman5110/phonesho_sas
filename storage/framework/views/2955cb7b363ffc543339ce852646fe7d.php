@@ -86,4 +86,4 @@ class ReceiptMail extends Mailable
     {
         return [];
     }
-}
+} ?><?php /**PATH C:\Users\Your Tech Point\Desktop\Shop\phonesho_sas\resources\views/emails/receipt.blade.php ENDPATH**/ ?>

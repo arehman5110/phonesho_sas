@@ -116,11 +116,12 @@ class SaleController extends Controller
             $summary = $this->paymentService->getSaleSummary($sale);
 
             return response()->json([
-                'success'   => true,
-                'message'   => "Sale {$sale->reference} completed!",
-                'sale_id'   => $sale->id,
-                'reference' => $sale->reference,
-                'summary'   => $summary,
+                'success'        => true,
+                'message'        => "Sale {$sale->reference} completed!",
+                'sale_id'        => $sale->id,
+                'reference'      => $sale->reference,
+                'summary'        => $summary,
+                'customer_email' => $sale->customer?->email,
             ]);
 
         } catch (\Exception $e) {
@@ -158,19 +159,18 @@ class SaleController extends Controller
     // -----------------------------------------------
     // POST /sales/{sale}/email
     // -----------------------------------------------
-    public function emailReceipt(Sale $sale): JsonResponse
+    public function emailReceipt(Request $request, Sale $sale): JsonResponse
     {
         abort_if(
             $sale->shop_id !== auth()->user()->active_shop_id,
             403
         );
 
-        if (!$sale->customer || !$sale->customer->email) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No customer email address found.',
-            ], 422);
-        }
+        $validated = $request->validate([
+            'email'   => ['required', 'email'],
+            'subject' => ['required', 'string', 'max:255'],
+            'message' => ['nullable', 'string', 'max:2000'],
+        ]);
 
         try {
             $sale->loadMissing([
@@ -181,12 +181,16 @@ class SaleController extends Controller
                 'shop',
             ]);
 
-            Mail::to($sale->customer->email)
-                ->send(new ReceiptMail($sale));
+            Mail::to($validated['email'])
+                ->send(new ReceiptMail(
+                    $sale,
+                    $validated['subject'],
+                    $validated['message'] ?? null,
+                ));
 
             return response()->json([
                 'success' => true,
-                'message' => "Receipt sent to {$sale->customer->email}",
+                'message' => "Receipt sent to {$validated['email']}",
             ]);
 
         } catch (\Exception $e) {

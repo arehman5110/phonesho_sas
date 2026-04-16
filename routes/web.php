@@ -91,9 +91,11 @@ Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name
 
 
     // ── Customers (placeholder) ───────────────────
-    Route::get('/customers', function () {
-        return view('dashboard');
-    })->name('customers.index');
+   // ── Customers ────────────────────────────────
+Route::prefix('customers')->name('customers.')->group(function () {
+    Route::get('/',            [CustomerController::class, 'index'])->name('index');
+    Route::get('/{customer}',  [CustomerController::class, 'show'])->name('show');
+});
 
     // ── Buy & Sell (placeholder) ──────────────────
     Route::get('/buy-sell', function () {

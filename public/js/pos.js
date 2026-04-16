@@ -1167,7 +1167,7 @@ function _handleSaleSuccess(data) {
     // Show receipt button toast
     if (data.sale_id) {
         setTimeout(() => {
-            _showReceiptPrompt(data.sale_id, data.reference);
+            _showReceiptPrompt(data.sale_id, data.reference, data.customer_email ?? null);
         }, 500);
     }
 
@@ -1196,15 +1196,15 @@ function _handleSaleSuccess(data) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// RECEIPT PROMPT — shown after successful sale
+// RECEIPT OPTIONS — shown after successful sale
 // ─────────────────────────────────────────────────────────────
-function _showReceiptPrompt(saleId, reference) {
-    // Remove existing
+function _showReceiptPrompt(saleId, reference, customerEmail) {
+    // Remove any existing prompt
     const existing = document.getElementById('receiptPrompt');
     if (existing) existing.remove();
 
     const prompt = document.createElement('div');
-    prompt.id    = 'receiptPrompt';
+    prompt.id = 'receiptPrompt';
     prompt.style.cssText = `
         position: fixed;
         bottom: 24px;
@@ -1213,44 +1213,356 @@ function _showReceiptPrompt(saleId, reference) {
         z-index: 9999;
         background: #1e293b;
         color: #fff;
-        padding: 14px 20px;
-        border-radius: 14px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        padding: 14px 18px;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.25);
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
         font-size: 0.85rem;
         font-weight: 600;
         animation: slideUp 0.3s ease;
+        white-space: nowrap;
     `;
 
     prompt.innerHTML = `
-        <span style="color:#94a3b8;">Sale ${reference}</span>
-        <a href="/sales/${saleId}/receipt"
-           target="_blank"
-           style="background:#10b981;color:#fff;padding:7px 14px;
-                  border-radius:8px;text-decoration:none;font-weight:700;
-                  font-size:0.8rem;white-space:nowrap;">
-            🖨 Print Receipt
-        </a>
+        <span style="color:#94a3b8;font-size:0.8rem;">Sale ${_escHtml(reference)}</span>
+
+        <button id="receiptPrintBtn"
+                style="background:#6366f1;color:#fff;padding:8px 14px;
+                       border-radius:9px;border:none;font-weight:700;
+                       font-size:0.8rem;cursor:pointer;display:flex;
+                       align-items:center;gap:6px;transition:background 0.15s;"
+                onmouseover="this.style.background='#4f46e5'"
+                onmouseout="this.style.background='#6366f1'">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0
+                         002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2
+                         2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+            </svg>
+            Print Receipt
+        </button>
+
+        <button id="receiptEmailBtn"
+                style="background:#10b981;color:#fff;padding:8px 14px;
+                       border-radius:9px;border:none;font-weight:700;
+                       font-size:0.8rem;cursor:pointer;display:flex;
+                       align-items:center;gap:6px;transition:background 0.15s;"
+                onmouseover="this.style.background='#059669'"
+                onmouseout="this.style.background='#10b981'">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2
+                         2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            Email Receipt
+        </button>
+
         <button onclick="document.getElementById('receiptPrompt').remove()"
                 style="background:none;border:none;color:#64748b;
-                       cursor:pointer;font-size:1.1rem;padding:0;
-                       line-height:1;">
-            ✕
-        </button>
+                       cursor:pointer;font-size:1.1rem;padding:0 4px;
+                       line-height:1;flex-shrink:0;"
+                title="Dismiss">✕</button>
     `;
 
     document.body.appendChild(prompt);
 
-    // Auto remove after 8 seconds
-    setTimeout(() => {
-        if (document.getElementById('receiptPrompt')) {
-            prompt.style.opacity    = '0';
-            prompt.style.transition = 'opacity 0.3s';
-            setTimeout(() => prompt.remove(), 300);
+    // Print — open receipt in new tab and trigger print, no navigation
+    document.getElementById('receiptPrintBtn').addEventListener('click', () => {
+        const printWin = window.open(`/sales/${saleId}/receipt`, '_blank');
+        if (printWin) {
+            printWin.addEventListener('load', () => {
+                printWin.print();
+            });
         }
-    }, 8000);
+    });
+
+    // Email — open email modal
+    document.getElementById('receiptEmailBtn').addEventListener('click', () => {
+        prompt.remove();
+        _showEmailModal(saleId, reference, customerEmail);
+    });
+
+    // Auto-dismiss after 12 seconds
+    setTimeout(() => {
+        const el = document.getElementById('receiptPrompt');
+        if (el) {
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 0.3s';
+            setTimeout(() => el.remove(), 300);
+        }
+    }, 12000);
+}
+
+// ─────────────────────────────────────────────────────────────
+// EMAIL RECEIPT MODAL
+// ─────────────────────────────────────────────────────────────
+function _showEmailModal(saleId, reference, customerEmail) {
+    // Remove existing
+    const existing = document.getElementById('emailReceiptModal');
+    if (existing) existing.remove();
+
+    const defaultSubject = `Your Receipt — ${reference}`;
+    const defaultMessage = `Thank you for shopping with us!\n\nWe really appreciate your business. Please find your receipt attached for sale ${reference}.\n\nIf you have any questions, feel free to get in touch.\n\nWarm regards,\nThe Team`;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'emailReceiptModal';
+    overlay.style.cssText = `
+        position: fixed; inset: 0; z-index: 99999;
+        background: rgba(0,0,0,0.55);
+        display: flex; align-items: center; justify-content: center;
+        padding: 16px;
+        animation: fadeIn 0.2s ease;
+    `;
+
+    overlay.innerHTML = `
+        <div style="background:#fff;border-radius:20px;width:100%;max-width:480px;
+                    box-shadow:0 24px 60px rgba(0,0,0,0.25);overflow:hidden;
+                    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+
+            <!-- Header -->
+            <div style="background:linear-gradient(135deg,#10b981,#059669);
+                        padding:20px 24px;display:flex;align-items:center;
+                        justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="width:36px;height:36px;background:rgba(255,255,255,0.2);
+                                border-radius:10px;display:flex;align-items:center;
+                                justify-content:center;">
+                        <svg width="18" height="18" fill="none" stroke="#fff" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0
+                                     002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p style="color:#fff;font-weight:800;font-size:0.95rem;margin:0;">
+                            Email Receipt
+                        </p>
+                        <p style="color:rgba(255,255,255,0.75);font-size:0.75rem;margin:0;">
+                            Sale ${_escHtml(reference)}
+                        </p>
+                    </div>
+                </div>
+                <button id="emailModalClose"
+                        style="background:rgba(255,255,255,0.2);border:none;color:#fff;
+                               width:32px;height:32px;border-radius:8px;cursor:pointer;
+                               font-size:1rem;display:flex;align-items:center;
+                               justify-content:center;">✕</button>
+            </div>
+
+            <!-- Body -->
+            <div style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+
+                <!-- Email -->
+                <div>
+                    <label style="display:block;font-size:0.75rem;font-weight:700;
+                                  color:#374151;margin-bottom:6px;text-transform:uppercase;
+                                  letter-spacing:0.05em;">
+                        Email Address <span style="color:#ef4444;">*</span>
+                    </label>
+                    <input id="emailModalTo" type="email"
+                           value="${_escAttr(customerEmail || '')}"
+                           placeholder="customer@example.com"
+                           required
+                           style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;
+                                  border-radius:10px;font-size:0.875rem;outline:none;
+                                  box-sizing:border-box;transition:border-color 0.15s;
+                                  font-family:inherit;"
+                           onfocus="this.style.borderColor='#10b981'"
+                           onblur="this.style.borderColor='#e5e7eb'">
+                    <p id="emailModalToErr"
+                       style="display:none;color:#ef4444;font-size:0.72rem;
+                              margin:4px 0 0;font-weight:600;">
+                        Please enter a valid email address.
+                    </p>
+                </div>
+
+                <!-- Subject -->
+                <div>
+                    <label style="display:block;font-size:0.75rem;font-weight:700;
+                                  color:#374151;margin-bottom:6px;text-transform:uppercase;
+                                  letter-spacing:0.05em;">
+                        Subject <span style="color:#ef4444;">*</span>
+                    </label>
+                    <input id="emailModalSubject" type="text"
+                           value="${_escAttr(defaultSubject)}"
+                           placeholder="Receipt subject..."
+                           required
+                           style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;
+                                  border-radius:10px;font-size:0.875rem;outline:none;
+                                  box-sizing:border-box;transition:border-color 0.15s;
+                                  font-family:inherit;"
+                           onfocus="this.style.borderColor='#10b981'"
+                           onblur="this.style.borderColor='#e5e7eb'">
+                    <p id="emailModalSubjectErr"
+                       style="display:none;color:#ef4444;font-size:0.72rem;
+                              margin:4px 0 0;font-weight:600;">
+                        Subject is required.
+                    </p>
+                </div>
+
+                <!-- Message -->
+                <div>
+                    <label style="display:block;font-size:0.75rem;font-weight:700;
+                                  color:#374151;margin-bottom:6px;text-transform:uppercase;
+                                  letter-spacing:0.05em;">
+                        Message <span style="color:#94a3b8;font-weight:400;text-transform:none;">(optional)</span>
+                    </label>
+                    <textarea id="emailModalMessage"
+                              rows="5"
+                              placeholder="Write a message to the customer..."
+                              style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;
+                                     border-radius:10px;font-size:0.875rem;outline:none;
+                                     box-sizing:border-box;resize:vertical;
+                                     transition:border-color 0.15s;font-family:inherit;
+                                     line-height:1.5;"
+                              onfocus="this.style.borderColor='#10b981'"
+                              onblur="this.style.borderColor='#e5e7eb'">${_escHtml(defaultMessage)}</textarea>
+                </div>
+
+                <!-- Error banner -->
+                <div id="emailModalError"
+                     style="display:none;background:#fef2f2;border:1.5px solid #fecaca;
+                            border-radius:10px;padding:10px 14px;
+                            color:#dc2626;font-size:0.8rem;font-weight:600;"></div>
+
+            </div>
+
+            <!-- Footer -->
+            <div style="padding:0 24px 24px;display:flex;gap:10px;">
+                <button id="emailModalCancel"
+                        style="flex:1;padding:11px;border-radius:10px;border:1.5px solid #e5e7eb;
+                               background:#fff;color:#6b7280;font-weight:700;font-size:0.875rem;
+                               cursor:pointer;transition:all 0.15s;"
+                        onmouseover="this.style.background='#f9fafb'"
+                        onmouseout="this.style.background='#fff'">
+                    Cancel
+                </button>
+                <button id="emailModalSend"
+                        style="flex:2;padding:11px;border-radius:10px;border:none;
+                               background:#10b981;color:#fff;font-weight:800;font-size:0.875rem;
+                               cursor:pointer;transition:background 0.15s;display:flex;
+                               align-items:center;justify-content:center;gap:7px;"
+                        onmouseover="this.style.background='#059669'"
+                        onmouseout="this.style.background='#10b981'">
+                    <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                    </svg>
+                    Send Receipt
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Close handlers
+    const closeModal = () => overlay.remove();
+    document.getElementById('emailModalClose').addEventListener('click', closeModal);
+    document.getElementById('emailModalCancel').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    // Send handler
+    document.getElementById('emailModalSend').addEventListener('click', async () => {
+        const emailInput   = document.getElementById('emailModalTo');
+        const subjectInput = document.getElementById('emailModalSubject');
+        const messageInput = document.getElementById('emailModalMessage');
+        const sendBtn      = document.getElementById('emailModalSend');
+        const errorBanner  = document.getElementById('emailModalError');
+
+        // Reset errors
+        document.getElementById('emailModalToErr').style.display      = 'none';
+        document.getElementById('emailModalSubjectErr').style.display = 'none';
+        errorBanner.style.display = 'none';
+
+        let valid = true;
+
+        const emailVal = emailInput.value.trim();
+        const emailRe  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailVal || !emailRe.test(emailVal)) {
+            document.getElementById('emailModalToErr').style.display = 'block';
+            emailInput.style.borderColor = '#ef4444';
+            valid = false;
+        }
+
+        const subjectVal = subjectInput.value.trim();
+        if (!subjectVal) {
+            document.getElementById('emailModalSubjectErr').style.display = 'block';
+            subjectInput.style.borderColor = '#ef4444';
+            valid = false;
+        }
+
+        if (!valid) return;
+
+        // Loading state
+        sendBtn.disabled  = true;
+        sendBtn.innerHTML = `
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24"
+                 style="animation:spin 1s linear infinite;">
+                <circle cx="12" cy="12" r="10" stroke="white" stroke-width="4" opacity="0.25"/>
+                <path fill="white" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            Sending...`;
+
+        try {
+            const res = await fetch(`/sales/${saleId}/email`, {
+                method : 'POST',
+                headers: {
+                    'Content-Type'     : 'application/json',
+                    'X-Requested-With' : 'XMLHttpRequest',
+                    'X-CSRF-TOKEN'     : state.config.csrf,
+                    'Accept'           : 'application/json',
+                },
+                body: JSON.stringify({
+                    email  : emailVal,
+                    subject: subjectVal,
+                    message: messageInput.value.trim() || null,
+                }),
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                overlay.remove();
+                _toast(`✓ ${data.message}`, 'success');
+            } else {
+                errorBanner.textContent   = data.message || 'Failed to send email.';
+                errorBanner.style.display = 'block';
+            }
+
+        } catch (e) {
+            errorBanner.textContent   = 'Network error. Please try again.';
+            errorBanner.style.display = 'block';
+        } finally {
+            sendBtn.disabled      = false;
+            sendBtn.style.background = '#10b981';
+            sendBtn.innerHTML = `
+                <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                          d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+                Send Receipt`;
+        }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
+// HTML ESCAPE HELPERS (for dynamic DOM building)
+// ─────────────────────────────────────────────────────────────
+function _escHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function _escAttr(str) {
+    if (!str) return '';
+    return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 // ─────────────────────────────────────────────────────────────
 // HANDLE SALE ERROR
