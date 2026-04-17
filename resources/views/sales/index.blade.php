@@ -66,6 +66,22 @@
         ['label' => 'Sales'],
     ]">
     <x-slot name="actions">
+        <a href="{{ route('products.index') }}"
+           class="flex items-center gap-2 px-4 py-2.5 rounded-xl
+                  text-sm font-semibold
+                  border border-gray-200 dark:border-gray-700
+                  text-gray-600 dark:text-gray-400
+                  hover:bg-gray-50 dark:hover:bg-gray-800
+                  transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor"
+                 viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4
+                         7m8 4v10M4 7v10l8 4"/>
+            </svg>
+            Products
+        </a>
         <a href="{{ route('pos.index') }}"
            class="flex items-center gap-2 px-4 py-2.5 rounded-xl
                   text-sm font-bold bg-indigo-600 hover:bg-indigo-700

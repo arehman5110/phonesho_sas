@@ -121,33 +121,22 @@ class StockController extends Controller
 
     // -----------------------------------------------
     // GET /products/{product}/movements
-    // Stock movement history (AJAX)
+    // Full page — stock movement history
     // -----------------------------------------------
-    public function movements(Product $product): JsonResponse
+    public function movements(Request $request, Product $product)
     {
         abort_if(
             $product->shop_id !== auth()->user()->active_shop_id,
             403
         );
 
+        $product->load(['category', 'brand']);
+
         $movements = StockMovement::where('product_id', $product->id)
             ->with('user')
             ->latest()
-            ->limit(20)
-            ->get()
-            ->map(fn($m) => [
-                'id'         => $m->id,
-                'type'       => $m->type,
-                'quantity'   => $m->quantity,
-                'note'       => $m->note,
-                'user'       => $m->user?->name ?? 'System',
-                'created_at' => $m->created_at->format('d/m/Y H:i'),
-            ]);
+            ->paginate(30);
 
-        return response()->json([
-            'product'   => $product->name,
-            'stock'     => $product->stock,
-            'movements' => $movements,
-        ]);
+        return view('products.movements', compact('product', 'movements'));
     }
 }

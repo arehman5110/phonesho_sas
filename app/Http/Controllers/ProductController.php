@@ -73,20 +73,19 @@ class ProductController extends Controller
 
         return response()->json(
             $products->map(fn($p) => [
-                'id'              => $p->id,
-                'name'            => $p->name,
-                'sku'             => $p->sku,
-                'category_id'     => $p->category_id,
-                'category'        => $p->category?->name,   // matches productSearch.js expectation
-                'brand_id'        => $p->brand_id,
-                'brand'           => $p->brand?->name,       // matches productSearch.js expectation
-                'price'           => (float) ($p->sell_price ?? $p->price),
-                'cost_price'      => (float) $p->cost_price,
-                'stock'           => (int) $p->stock,
+                'id'            => $p->id,
+                'name'          => $p->name,
+                'sku'           => $p->sku,
+                'category_id'   => $p->category_id,
+                'category_name' => $p->category?->name,
+                'brand_id'      => $p->brand_id,
+                'brand_name'    => $p->brand?->name,
+                'price'         => (float) $p->price,
+                'cost_price'    => (float) $p->cost_price,
+                'stock'         => (int) $p->stock,
                 'low_stock_alert' => (int) $p->low_stock_alert,
-                'is_active'       => (bool) $p->is_active,
-                'description'     => $p->description,
-                'formatted_price' => '£' . number_format($p->sell_price ?? $p->price, 2),
+                'is_active'     => (bool) $p->is_active,
+                'formatted_price' => '£' . number_format($p->price, 2),
             ])
         );
     }
@@ -118,12 +117,51 @@ class ProductController extends Controller
             $query->where('brand_id', $request->brand_id);
         }
 
+        if ($request->filled('stock_filter')) {
+            match($request->stock_filter) {
+                'in'  => $query->whereColumn('stock', '>', 'low_stock_alert'),
+                'low' => $query->whereColumn('stock', '<=', 'low_stock_alert')->where('stock', '>', 0),
+                'out' => $query->where('stock', '<=', 0),
+                default => null,
+            };
+        }
+
         $products   = $query->orderBy('name')->paginate(20)->withQueryString();
         $categories = Category::where('shop_id', $shopId)->ordered()->get();
         $brands     = Brand::where('shop_id', $shopId)->ordered()->get();
 
+        // Stats for cards (always unfiltered totals)
+        $stats = [
+            'total'    => Product::where('shop_id', $shopId)->where('is_active', true)->count(),
+            'in_stock' => Product::where('shop_id', $shopId)->where('is_active', true)
+                            ->whereColumn('stock', '>', 'low_stock_alert')->count(),
+            'low'      => Product::where('shop_id', $shopId)->where('is_active', true)
+                            ->whereColumn('stock', '<=', 'low_stock_alert')
+                            ->where('stock', '>', 0)->count(),
+            'out'      => Product::where('shop_id', $shopId)->where('is_active', true)
+                            ->where('stock', '<=', 0)->count(),
+        ];
+
+        // ── AJAX — return JSON for live filter ────
+        if ($request->ajax() || $request->wantsJson()) {
+            $rowsHtml       = view('products.partials.rows', compact('products'))->render();
+            $paginationHtml = $products->hasPages()
+                ? $products->links()->render()
+                : '';
+
+            return response()->json([
+                'rows'            => $rowsHtml,
+                'pagination_html' => $paginationHtml,
+                'has_pages'       => $products->hasPages(),
+                'total'           => $products->total(),
+                'from'            => $products->firstItem(),
+                'to'              => $products->lastItem(),
+                'stats'           => $stats,
+            ]);
+        }
+
         return view('products.index', compact(
-            'products', 'categories', 'brands'
+            'products', 'categories', 'brands', 'stats'
         ));
     }
 
@@ -317,8 +355,6 @@ class ProductController extends Controller
     // -----------------------------------------------
     private function _formatProduct(Product $product): array
     {
-        $price = $product->sell_price ?? $product->price ?? 0;
-
         return [
             'id'              => $product->id,
             'name'            => $product->name,
@@ -327,13 +363,12 @@ class ProductController extends Controller
             'category_id'     => $product->category_id,
             'brand'           => $product->brand?->name,
             'brand_id'        => $product->brand_id,
-            'price'           => (float) $price,
+            'price'           => (float) $product->sell_price,
             'cost_price'      => (float) $product->cost_price,
             'stock'           => (int) $product->stock,
             'low_stock_alert' => (int) $product->low_stock_alert,
             'is_active'       => (bool) $product->is_active,
-            'description'     => $product->description,
-            'formatted_price' => '£' . number_format($price, 2),
+            'formatted_price' => '£' . number_format($product->sell_price, 2),
         ];
     }
 }

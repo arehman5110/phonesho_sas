@@ -3,6 +3,9 @@
 {{-- ============================================================ --}}
 <div class="lg:col-span-1">
     <div class="lg:sticky lg:top-5 space-y-4">
+        {{-- Hidden spans kept for JS compatibility (infoCustomer/infoDeviceCount) --}}
+        <span id="infoCustomer" style="display:none;"></span>
+        <span id="infoDeviceCount" style="display:none;">0</span>
 
         {{-- ── Price Summary Card ──────────────────── --}}
         <div class="bg-white dark:bg-gray-900
@@ -187,67 +190,6 @@
                           class="font-bold text-red-500
                                  dark:text-red-400">
                         £0.00
-                    </span>
-                </div>
-            </div>
-
-        </div>
-
-        {{-- ── Quick Info ───────────────────────────── --}}
-        <div class="bg-white dark:bg-gray-900
-                    border border-gray-200 dark:border-gray-700
-                    rounded-2xl overflow-hidden">
-
-            <div class="flex items-center gap-3 px-5 py-3.5
-                        bg-gray-50 dark:bg-gray-800
-                        border-b border-gray-200 dark:border-gray-700
-                        rounded-t-2xl">
-                <div class="w-7 h-7 rounded-lg
-                            bg-amber-100 dark:bg-amber-900/40
-                            flex items-center justify-center">
-                    <svg class="w-4 h-4 text-amber-600 dark:text-amber-400"
-                         fill="none" stroke="currentColor"
-                         viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0
-                                 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                </div>
-                <span class="text-sm font-bold
-                             text-gray-800 dark:text-gray-200">
-                    Quick Info
-                </span>
-            </div>
-
-            <div class="p-5 space-y-2.5">
-                <div class="flex justify-between text-sm">
-                    <span class="text-gray-500 dark:text-gray-400">
-                        Devices
-                    </span>
-                    <span id="infoDeviceCount"
-                          class="font-semibold text-gray-900
-                                 dark:text-white">
-                        0
-                    </span>
-                </div>
-                <div class="flex justify-between text-sm">
-                    <span class="text-gray-500 dark:text-gray-400">
-                        Customer
-                    </span>
-                    <span id="infoCustomer"
-                          class="font-semibold text-gray-900
-                                 dark:text-white truncate ml-4 max-w-32">
-                        None
-                    </span>
-                </div>
-                <div class="flex justify-between text-sm">
-                    <span class="text-gray-500 dark:text-gray-400">
-                        Book-in
-                    </span>
-                    <span class="font-semibold text-gray-900
-                                 dark:text-white">
-                        {{ date('d/m/Y') }}
                     </span>
                 </div>
             </div>

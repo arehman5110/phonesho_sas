@@ -90,20 +90,22 @@ class RepairDevice extends Model
     public function getWarrantyLabelAttribute(): string
     {
         return match($this->warranty_status) {
-            'active'  => 'Under Warranty',
-            'expired' => 'Warranty Expired',
-            'none'    => 'No Warranty',
-            default   => 'No Warranty',
+            'active'          => 'Under Warranty',
+            'under_warranty'  => 'Under Warranty',
+            'expired'         => 'Warranty Expired',
+            'none'            => 'No Warranty',
+            default           => 'No Warranty',
         };
     }
 
     public function getWarrantyColorAttribute(): string
     {
         return match($this->warranty_status) {
-            'active'  => 'green',
-            'expired' => 'red',
-            'none'    => 'gray',
-            default   => 'gray',
+            'active'          => 'green',
+            'under_warranty'  => 'blue',
+            'expired'         => 'red',
+            'none'            => 'gray',
+            default           => 'gray',
         };
     }
 

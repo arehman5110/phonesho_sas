@@ -63,8 +63,15 @@ Route::prefix('repairs')->name('repairs.')->group(function () {
     Route::post('/',                   [RepairController::class, 'store'])->name('store');
     Route::get('/warranty-search',     [RepairController::class, 'warrantySearch'])->name('warranty-search');
     Route::get('/{repair}',            [RepairController::class, 'show'])->name('show');
+    Route::get('/{repair}/edit',       [RepairController::class, 'edit'])->name('edit');
+    Route::put('/{repair}',            [RepairController::class, 'update'])->name('update');
+    Route::delete('/{repair}',         [RepairController::class, 'destroy'])->name('destroy');
     Route::get('/{repair}/receipt',    [RepairController::class, 'receipt'])->name('receipt');
     Route::post('/{repair}/email',     [RepairController::class, 'emailReceipt'])->name('email-receipt');
+    Route::post('/{repair}/payment',   [RepairController::class, 'addPayment'])->name('add-payment');
+    Route::delete('/{repair}/payment/{payment}', [RepairController::class, 'deletePayment'])->name('delete-payment');
+    Route::patch('/{repair}/status',   [RepairController::class, 'updateStatus'])->name('update-status');
+    Route::patch('/{repair}/device/{device}/status', [RepairController::class, 'updateDeviceStatus'])->name('update-device-status');
 });
     // ── AJAX — Products & Categories ─────────────
 
@@ -85,17 +92,17 @@ Route::prefix('repairs')->name('repairs.')->group(function () {
     Route::get('/vouchers',           [VoucherController::class, 'list'])->name('vouchers.list');
     // ── Repair Types AJAX ─────────────────────────
 Route::get('/repair-types',  [RepairController::class, 'repairTypes'])->name('repair-types.search');
+Route::get('/products/autocomplete', [ProductController::class, 'autocomplete'])->name('products.autocomplete');
+    Route::get('/products',              [ProductController::class, 'search'])->name('products.search');
 Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name('customers.update');
 });
 
 
 
     // ── Customers (placeholder) ───────────────────
-   // ── Customers ────────────────────────────────
-Route::prefix('customers')->name('customers.')->group(function () {
-    Route::get('/',            [CustomerController::class, 'index'])->name('index');
-    Route::get('/{customer}',  [CustomerController::class, 'show'])->name('show');
-});
+    Route::get('/customers', function () {
+        return view('dashboard');
+    })->name('customers.index');
 
     // ── Buy & Sell (placeholder) ──────────────────
     Route::get('/buy-sell', function () {

@@ -98,29 +98,44 @@
 
     {{-- Devices --}}
     <td class="px-4 py-4 hidden sm:table-cell">
-        @foreach($repair->devices->take(2) as $device)
-            <p class="text-xs font-medium text-gray-700 dark:text-gray-300
-                       truncate max-w-36">
+        @forelse($repair->devices as $device)
+            <p class="text-xs font-medium text-gray-700 dark:text-gray-300 truncate max-w-36 mb-0.5 last:mb-0">
                 📱 {{ $device->device_name ?? $device->deviceType?->name ?? 'Device' }}
             </p>
-        @endforeach
-        @if($repair->devices->count() > 2)
-            <p class="text-xs text-gray-400">+{{ $repair->devices->count() - 2 }} more</p>
-        @endif
-        @if($repair->devices->isEmpty())
+        @empty
             <span class="text-xs text-gray-400">—</span>
-        @endif
+        @endforelse
     </td>
 
-    {{-- Status --}}
+    {{-- Device Statuses --}}
     <td class="px-4 py-4 hidden md:table-cell">
-        @if($repair->status)
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1
-                         rounded-full text-xs font-semibold {{ $badgeClass }}">
-                <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
-                {{ $repair->status->name }}
-            </span>
-        @endif
+        @forelse($repair->devices as $device)
+        @php
+            $dStatusColors = [
+                'green'  => 'badge-green',
+                'blue'   => 'badge-blue',
+                'yellow' => 'badge-yellow',
+                'orange' => 'badge-orange',
+                'red'    => 'badge-red',
+                'purple' => 'badge-purple',
+                'gray'   => 'badge-gray',
+            ];
+            $dBadge = $dStatusColors[$device->status?->color ?? 'gray'] ?? 'badge-gray';
+        @endphp
+        <div class="mb-0.5 last:mb-0">
+            @if($device->status)
+                <span class="inline-flex items-center gap-1 px-2 py-0.5
+                             rounded-full text-xs font-semibold {{ $dBadge }}">
+                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70 flex-shrink-0"></span>
+                    {{ $device->status->name }}
+                </span>
+            @else
+                <span class="text-xs text-gray-400">—</span>
+            @endif
+        </div>
+        @empty
+            <span class="text-xs text-gray-400">—</span>
+        @endforelse
     </td>
 
     {{-- Total --}}
@@ -137,26 +152,6 @@
         @endif
     </td>
 
-    {{-- Assigned --}}
-    <td class="px-4 py-4 hidden xl:table-cell">
-        @if($repair->assignedTo)
-            <div class="flex items-center gap-2">
-                <div class="w-6 h-6 rounded-full bg-indigo-500
-                            flex items-center justify-center
-                            text-white text-xs font-bold flex-shrink-0">
-                    {{ strtoupper(substr($repair->assignedTo->name, 0, 1)) }}
-                </div>
-                <span class="text-xs font-medium text-gray-700
-                             dark:text-gray-300 truncate max-w-24">
-                    {{ $repair->assignedTo->name }}
-                </span>
-            </div>
-        @else
-            <span class="text-xs italic text-gray-400">Unassigned</span>
-        @endif
-    </td>
-
-  
    {{-- Actions --}}
 <td class="px-4 py-4" onclick="event.stopPropagation()">
     <div class="flex items-center gap-1.5
@@ -208,7 +203,7 @@
 
 {{-- ── Expanded Row ─────────────────────────────── --}}
 <tr id="expand-{{ $repair->id }}" class="repair-expand">
-    <td colspan="8"
+    <td colspan="7"
         class="px-0 py-0"
         style="background:linear-gradient(to bottom,
                #f0f4ff 0%, #f8faff 100%);"
@@ -242,14 +237,6 @@
                     @endif
                 </div>
                 <div class="ml-auto flex items-center gap-2">
-                    @if($repair->assignedTo)
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                        Assigned to
-                        <strong class="text-gray-700 dark:text-gray-300">
-                            {{ $repair->assignedTo->name }}
-                        </strong>
-                    </span>
-                    @endif
                     <a href="{{ route('repairs.show', $repair) }}"
                        onclick="event.stopPropagation()"
                        class="flex items-center gap-1.5 px-3 py-1.5
@@ -332,23 +319,35 @@
                         </div>
                         @endif
 
-                        {{-- Warranty --}}
+                        {{-- Warranty — only shown when device status is completed --}}
+                        @if($device->status?->is_completed)
                         <div>
                             <p style="color:#94a3b8;font-weight:700;
                                       font-size:0.65rem;text-transform:uppercase;
                                       letter-spacing:0.05em;margin-bottom:2px;">
                                 Warranty
                             </p>
+                            @php
+                                $wBg = match($device->warranty_status) {
+                                    'active'         => 'background:#dcfce7;color:#166534;',
+                                    'under_warranty' => 'background:#dbeafe;color:#1e40af;',
+                                    'expired'        => 'background:#fee2e2;color:#991b1b;',
+                                    default          => 'background:#f1f5f9;color:#475569;',
+                                };
+                                $wText = match($device->warranty_status) {
+                                    'under_warranty' => '🛡️ Under Warranty',
+                                    'active'         => '✓ ' . $device->warranty_label . ($device->warranty_expiry_date ? ' until ' . \Carbon\Carbon::parse((string) $device->warranty_expiry_date)->format('d/m/Y') : ''),
+                                    'expired'        => '✗ Expired',
+                                    default          => 'No Warranty',
+                                };
+                            @endphp
                             <span style="font-size:0.7rem;font-weight:700;
                                          padding:2px 8px;border-radius:999px;
-                                         {{ $device->warranty_status === 'active'
-                                             ? 'background:#dcfce7;color:#166534;'
-                                             : ($device->warranty_status === 'expired'
-                                                 ? 'background:#fee2e2;color:#991b1b;'
-                                                 : 'background:#f1f5f9;color:#475569;') }}">
-                                {{ $device->warranty_label }}
+                                         {{ $wBg }}">
+                                {{ $wText }}
                             </span>
                         </div>
+                        @endif
 
                         {{-- Parts --}}
                         @if($device->parts->isNotEmpty())
@@ -503,7 +502,7 @@
                                     Due
                                 </p>
                                 <p style="color:#374151;font-weight:600;">
-                                    {{ $repair->completion_date->format('d/m/Y') }}
+                                    {{ $repair->completion_date?->format('d/m/Y') ?? '—' }}
                                 </p>
                             </div>
                             @endif

@@ -235,23 +235,8 @@ function _buildMainRow(repair) {
     tr.className = 'repair-row group hover:bg-indigo-50/40 dark:hover:bg-indigo-900/10 transition-colors';
     tr.onclick   = () => toggleRow(repair.id, tr);
 
-    const badgeClass  = _badgeClass(repair.status?.color ?? 'gray');
     const totalPaid   = repair.payments.reduce((s, p) => s + parseFloat(p.amount), 0);
     const outstanding = Math.max(0, parseFloat(repair.final_price) - totalPaid);
-
-    const devicesSummary = repair.devices.slice(0, 2)
-        .map(d => `
-            <p class="text-xs font-medium text-gray-700
-                       dark:text-gray-300 truncate max-w-36">
-                📱 ${_esc(d.device_name || d.device_type || 'Device')}
-            </p>`)
-        .join('');
-
-    const moreDevices = repair.devices.length > 2
-        ? `<p class="text-xs text-gray-400 mt-0.5">
-               +${repair.devices.length - 2} more
-           </p>`
-        : '';
 
     tr.innerHTML = `
         <td class="px-4 py-4 w-8">
@@ -314,20 +299,30 @@ function _buildMainRow(repair) {
         </td>
 
         <td class="px-4 py-4 hidden sm:table-cell">
-            ${devicesSummary}
-            ${moreDevices}
-            ${repair.devices.length === 0
-                ? '<span class="text-xs text-gray-400">—</span>'
-                : ''}
+            ${repair.devices.length > 0
+                ? repair.devices.map(d =>
+                    `<p class="text-xs font-medium text-gray-700 dark:text-gray-300 truncate max-w-36 mb-0.5 last:mb-0">
+                        📱 ${_esc(d.device_name || d.device_type || 'Device')}
+                    </p>`
+                  ).join('')
+                : '<span class="text-xs text-gray-400">—</span>'
+            }
         </td>
 
         <td class="px-4 py-4 hidden md:table-cell">
-            ${repair.status
-                ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1
-                               rounded-full text-xs font-semibold ${badgeClass}">
-                       <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
-                       ${_esc(repair.status.name)}
-                   </span>`
+            ${repair.devices.length > 0
+                ? repair.devices.map(d => {
+                    const badge = d.status ? _badgeClass(d.status.color) : 'badge-gray';
+                    return d.status
+                        ? `<div class="mb-0.5 last:mb-0">
+                               <span class="inline-flex items-center gap-1 px-2 py-0.5
+                                            rounded-full text-xs font-semibold ${badge}">
+                                   <span class="w-1.5 h-1.5 rounded-full bg-current opacity-70 flex-shrink-0"></span>
+                                   ${_esc(d.status.name)}
+                               </span>
+                           </div>`
+                        : '<div class="mb-0.5"><span class="text-xs text-gray-400">—</span></div>';
+                  }).join('')
                 : '<span class="text-xs text-gray-400">—</span>'
             }
         </td>
@@ -442,11 +437,50 @@ function _buildExpandRow(repair) {
                </div>`
             : '';
 
-        const warrantyStyle = device.warranty === 'Under Warranty'
-            ? 'background:#dcfce7;color:#166534;'
-            : device.warranty === 'Warranty Expired'
-                ? 'background:#fee2e2;color:#991b1b;'
-                : 'background:#f1f5f9;color:#475569;';
+        // Warranty — only shown when device status is_completed
+        const warrantyHtml = device.status?.is_completed
+            ? (() => {
+                const wBg = {
+                    active         : 'background:#dcfce7;color:#166534;',
+                    under_warranty : 'background:#dbeafe;color:#1e40af;',
+                    expired        : 'background:#fee2e2;color:#991b1b;',
+                }[device.warranty_status] ?? 'background:#f1f5f9;color:#475569;';
+
+                const wText = device.warranty_status === 'under_warranty'
+                    ? '🛡️ Under Warranty'
+                    : device.warranty_status === 'active'
+                        ? '✓ ' + device.warranty_label + (device.warranty_expiry ? ` until ${device.warranty_expiry}` : '')
+                        : device.warranty_status === 'expired'
+                            ? '✗ Expired'
+                            : 'No Warranty';
+
+                return `<div>
+                    <p style="color:#94a3b8;font-weight:700;font-size:0.65rem;
+                              text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">
+                        Warranty
+                    </p>
+                    <span style="font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:999px;${wBg}">
+                        ${wText}
+                    </span>
+                </div>`;
+              })()
+            : '';
+
+        // Device status badge shown in card header
+        const deviceStatusBadge = device.status
+            ? (() => {
+                const badge = _badgeClass(device.status.color);
+                return `<span class="${badge}"
+                              style="display:inline-flex;align-items:center;gap:4px;
+                                     padding:2px 8px;border-radius:999px;
+                                     font-size:0.7rem;font-weight:700;margin-left:4px;">
+                            <span style="width:5px;height:5px;border-radius:50%;
+                                         background:currentColor;opacity:0.7;flex-shrink:0;display:inline-block;">
+                            </span>
+                            ${_esc(device.status.name)}
+                        </span>`;
+              })()
+            : '';
 
         const meta = [
             device.device_type,
@@ -464,18 +498,20 @@ function _buildExpandRow(repair) {
                             border-bottom:1px solid #f1f5f9;">
                     <span style="font-size:1.2rem;">📱</span>
                     <div style="min-width:0;flex:1;">
-                        <p style="font-size:0.82rem;font-weight:800;
-                                  color:#1e293b;margin:0;white-space:nowrap;
-                                  overflow:hidden;text-overflow:ellipsis;">
-                            ${_esc(device.device_name || 'Device')}
-                        </p>
+                        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;">
+                            <p style="font-size:0.82rem;font-weight:800;
+                                      color:#1e293b;margin:0;white-space:nowrap;
+                                      overflow:hidden;text-overflow:ellipsis;">
+                                ${_esc(device.device_name || 'Device')}
+                            </p>
+                            ${deviceStatusBadge}
+                        </div>
                         <p style="font-size:0.7rem;color:#94a3b8;margin:0;">
                             ${_esc(meta || '—')}
                         </p>
                     </div>
                     <span style="font-size:0.8rem;font-weight:800;
-                                 color:#6366f1;white-space:nowrap;
-                                 flex-shrink:0;">
+                                 color:#6366f1;white-space:nowrap;flex-shrink:0;">
                         £${parseFloat(device.price || 0).toFixed(2)}
                     </span>
                 </div>
@@ -507,20 +543,20 @@ function _buildExpandRow(repair) {
                             </p>
                         </div>` : ''}
 
-                    <div>
-                        <p style="color:#94a3b8;font-weight:700;
-                                  font-size:0.65rem;text-transform:uppercase;
-                                  letter-spacing:0.05em;margin-bottom:2px;">
-                            Warranty
-                        </p>
-                        <span style="font-size:0.7rem;font-weight:700;
-                                     padding:2px 8px;border-radius:999px;
-                                     ${warrantyStyle}">
-                            ${_esc(device.warranty || 'No Warranty')}
-                        </span>
-                    </div>
-
+                    ${warrantyHtml}
                     ${partsHtml}
+
+                    ${device.notes ? `
+                        <div style="grid-column:1/-1;background:#fafafa;
+                                    border-radius:8px;padding:6px 10px;margin-top:2px;">
+                            <p style="color:#94a3b8;font-size:0.65rem;font-weight:700;
+                                      text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px;">
+                                Notes
+                            </p>
+                            <p style="color:#6b7280;font-size:0.75rem;margin:0;">
+                                ${_esc(device.notes)}
+                            </p>
+                        </div>` : ''}
 
                 </div>
             </div>`;
@@ -564,7 +600,7 @@ function _buildExpandRow(repair) {
         : '';
 
     tr.innerHTML = `
-        <td colspan="8" class="px-0 py-0"
+        <td colspan="7" class="px-0 py-0"
             style="background:linear-gradient(to bottom,
                    #f0f4ff 0%, #f8faff 100%);">
             <div style="border-top:3px solid #6366f1;
@@ -591,14 +627,6 @@ function _buildExpandRow(repair) {
                         : ''}
                     <div style="margin-left:auto;display:flex;
                                 align-items:center;gap:8px;">
-                        ${repair.assigned_to
-                            ? `<span style="font-size:0.75rem;color:#94a3b8;">
-                                   Assigned to
-                                   <strong style="color:#374151;">
-                                       ${_esc(repair.assigned_to)}
-                                   </strong>
-                               </span>`
-                            : ''}
                         <a href="${repair.show_url}"
                            onclick="event.stopPropagation()"
                            style="display:inline-flex;align-items:center;

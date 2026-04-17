@@ -36,6 +36,17 @@ export function PartsInput(inputName, options = {}) {
                 .slice(0, 8);
         },
 
+        // ── Prefill (used by edit form) ────────────
+        prefill(items) {
+            this.parts = items.map(item => ({
+                name      : item.name      ?? item.label ?? String(item),
+                product_id: item.product_id ?? null,
+                quantity  : item.quantity  ?? 1,
+                price     : item.price     ?? 0,
+                isCustom  : item.isCustom  ?? !item.product_id,
+            }));
+        },
+
         // ── Input events ──────────────────────────
         onInput() {
             this.isOpen           = true;

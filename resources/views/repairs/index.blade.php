@@ -391,11 +391,6 @@
                                 uppercase tracking-wider hidden lg:table-cell">
                         Total
                     </th>
-                    <th class="text-left px-4 py-3 text-xs font-bold
-                                text-gray-500 dark:text-gray-400
-                                uppercase tracking-wider hidden xl:table-cell">
-                        Assigned
-                    </th>
                     <th class="px-4 py-3"></th>
                 </tr>
             </thead>

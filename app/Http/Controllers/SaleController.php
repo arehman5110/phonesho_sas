@@ -21,81 +21,70 @@ class SaleController extends Controller
 
     // -----------------------------------------------
     // GET /sales
-    // Sales history list
     // -----------------------------------------------
-  public function index(Request $request): mixed
-{
-    $shopId = auth()->user()->active_shop_id;
-
-    if (!$shopId) {
-        return redirect()->route('shop.select')
-            ->with('error', 'Please select a shop first.');
-    }
-
-    $query = Sale::forShop($shopId)
-        ->with(['customer', 'items', 'payments', 'createdBy']);
-
-    // ── Search ────────────────────────────────
-    if ($request->filled('search')) {
-        $term = $request->search;
-        $query->where(function ($q) use ($term) {
-            $q->where('reference', 'like', "%{$term}%")
-              ->orWhereHas('customer', fn($c) =>
-                  $c->where('name',  'like', "%{$term}%")
-                    ->orWhere('phone', 'like', "%{$term}%")
-              );
-        });
-    }
-
-    // ── Payment status ────────────────────────
-    if ($request->filled('payment_status')) {
-        $query->where('payment_status', $request->payment_status);
-    }
-
-    // ── Payment method ────────────────────────
-    if ($request->filled('payment_method')) {
-        $query->where('payment_method', $request->payment_method);
-    }
-
-    // ── Date range ────────────────────────────
-    if ($request->filled('date_from')) {
-        $query->whereDate('created_at', '>=', $request->date_from);
-    }
-    if ($request->filled('date_to')) {
-        $query->whereDate('created_at', '<=', $request->date_to);
-    }
-
-    $query->latest();
-
-    // ── AJAX ─────────────────────────────────
-    if ($request->ajax() || $request->wantsJson()) {
-        $sales = $query->paginate(20)->withQueryString();
-
-        return response()->json([
-            'sales'      => $sales->map(fn($s) => $this->_formatSale($s)),
-            'pagination' => [
-                'total'        => $sales->total(),
-                'current_page' => $sales->currentPage(),
-                'last_page'    => $sales->lastPage(),
-                'from'         => $sales->firstItem(),
-                'to'           => $sales->lastItem(),
-            ],
-        ]);
-    }
-
-    $sales = $query->paginate(20)->withQueryString();
-
-    return view('sales.index', compact('sales'));
-}
-
-    // -----------------------------------------------
-    // GET /pos
-    // POS terminal
-    // -----------------------------------------------
-    public function pos()
+    public function index(Request $request): mixed
     {
         $shopId = auth()->user()->active_shop_id;
 
+        if (!$shopId) {
+            return redirect()->route('shop.select')
+                ->with('error', 'Please select a shop first.');
+        }
+
+        $query = Sale::forShop($shopId)
+            ->with(['customer', 'items', 'payments', 'createdBy']);
+
+        if ($request->filled('search')) {
+            $term = $request->search;
+            $query->where(function ($q) use ($term) {
+                $q->where('reference', 'like', "%{$term}%")
+                  ->orWhereHas('customer', fn($c) =>
+                      $c->where('name',  'like', "%{$term}%")
+                        ->orWhere('phone', 'like', "%{$term}%")
+                  );
+            });
+        }
+
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->payment_status);
+        }
+
+        if ($request->filled('payment_method')) {
+            $query->where('payment_method', $request->payment_method);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        $query->latest();
+
+        if ($request->ajax() || $request->wantsJson()) {
+            $sales = $query->paginate(20)->withQueryString();
+            return response()->json([
+                'sales'      => $sales->map(fn($s) => $this->_formatSale($s)),
+                'pagination' => [
+                    'total'        => $sales->total(),
+                    'current_page' => $sales->currentPage(),
+                    'last_page'    => $sales->lastPage(),
+                    'from'         => $sales->firstItem(),
+                    'to'           => $sales->lastItem(),
+                ],
+            ]);
+        }
+
+        $sales = $query->paginate(20)->withQueryString();
+        return view('sales.index', compact('sales'));
+    }
+
+    // -----------------------------------------------
+    // GET /pos
+    // -----------------------------------------------
+    public function pos()
+    {
         return view('pos.index');
     }
 
@@ -137,18 +126,9 @@ class SaleController extends Controller
     // -----------------------------------------------
     public function receipt(Sale $sale): mixed
     {
-        abort_if(
-            $sale->shop_id !== auth()->user()->active_shop_id,
-            403
-        );
+        abort_if($sale->shop_id !== auth()->user()->active_shop_id, 403);
 
-        $sale->load([
-            'items.product',
-            'customer',
-            'payments',
-            'createdBy',
-            'shop',
-        ]);
+        $sale->load(['items.product', 'customer', 'payments', 'createdBy', 'shop']);
 
         $summary  = $this->paymentService->getSaleSummary($sale);
         $settings = ShopSetting::getAllForShop($sale->shop_id);
@@ -161,10 +141,7 @@ class SaleController extends Controller
     // -----------------------------------------------
     public function emailReceipt(Request $request, Sale $sale): JsonResponse
     {
-        abort_if(
-            $sale->shop_id !== auth()->user()->active_shop_id,
-            403
-        );
+        abort_if($sale->shop_id !== auth()->user()->active_shop_id, 403);
 
         $validated = $request->validate([
             'email'   => ['required', 'email'],
@@ -173,13 +150,7 @@ class SaleController extends Controller
         ]);
 
         try {
-            $sale->loadMissing([
-                'items.product',
-                'customer',
-                'payments',
-                'createdBy',
-                'shop',
-            ]);
+            $sale->loadMissing(['items.product', 'customer', 'payments', 'createdBy', 'shop']);
 
             Mail::to($validated['email'])
                 ->send(new ReceiptMail(
@@ -206,14 +177,8 @@ class SaleController extends Controller
     // -----------------------------------------------
     public function summary(Sale $sale): JsonResponse
     {
-        abort_if(
-            $sale->shop_id !== auth()->user()->active_shop_id,
-            403
-        );
-
-        return response()->json(
-            $this->paymentService->getSaleSummary($sale)
-        );
+        abort_if($sale->shop_id !== auth()->user()->active_shop_id, 403);
+        return response()->json($this->paymentService->getSaleSummary($sale));
     }
 
     // -----------------------------------------------

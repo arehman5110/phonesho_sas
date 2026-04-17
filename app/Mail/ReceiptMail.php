@@ -19,15 +19,11 @@ class ReceiptMail extends Mailable
     public float  $outstanding;
     public float  $change;
 
-    // -----------------------------------------------
-    // Constructor
-    // -----------------------------------------------
     public function __construct(
         public Sale $sale,
         protected ?string $customSubject = null,
         protected ?string $customMessage = null,
     ) {
-        // Load relationships
         $this->sale->loadMissing([
             'items.product',
             'customer',
@@ -36,21 +32,14 @@ class ReceiptMail extends Mailable
             'shop',
         ]);
 
-        // Load shop settings
-        $this->settings = ShopSetting::getAllForShop($sale->shop_id);
-
-        // Pre-calculate amounts
+        $this->settings    = ShopSetting::getAllForShop($sale->shop_id);
         $this->totalPaid   = (float) $sale->payments->sum('amount');
         $this->outstanding = max(0, (float) $sale->final_amount - $this->totalPaid);
         $this->change      = max(0, $this->totalPaid - (float) $sale->final_amount);
     }
 
-    // -----------------------------------------------
-    // Envelope — subject line
-    // -----------------------------------------------
     public function envelope(): Envelope
     {
-        // Use custom subject if provided, otherwise fall back to shop setting
         if ($this->customSubject) {
             $subject = $this->customSubject;
         } else {
@@ -61,9 +50,6 @@ class ReceiptMail extends Mailable
         return new Envelope(subject: $subject);
     }
 
-    // -----------------------------------------------
-    // Content — which view to use
-    // -----------------------------------------------
     public function content(): Content
     {
         return new Content(
@@ -79,9 +65,6 @@ class ReceiptMail extends Mailable
         );
     }
 
-    // -----------------------------------------------
-    // Attachments
-    // -----------------------------------------------
     public function attachments(): array
     {
         return [];

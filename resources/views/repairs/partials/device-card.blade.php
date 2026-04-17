@@ -149,6 +149,7 @@
                         class="repair-input"
                         onchange="RepairPayments.updateWarrantyExpiry(this)">
                     <option value="0">No Warranty</option>
+                    <option value="-1">🛡️ Under Warranty</option>
                     <option value="30">1 Month</option>
                     <option value="90">3 Months</option>
                     <option value="180" selected>6 Months</option>

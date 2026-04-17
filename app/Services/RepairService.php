@@ -28,26 +28,42 @@ class RepairService
             $finalPrice = max(0, $totalPrice - $discount);
 
             // ── Step 2: Create repair record ──────────
+            // Auto-resolve status — use provided or find shop default
+            $statusId = $data['status_id'] ?? null;
+            if (!$statusId) {
+                $defaultStatus = \App\Models\Status::where('shop_id', $data['shop_id'])
+                    ->where('type', 'repair')
+                    ->where('is_active', true)
+                    ->where('is_default', true)
+                    ->first();
+                $statusId = $defaultStatus?->id
+                    ?? \App\Models\Status::where('shop_id', $data['shop_id'])
+                        ->where('type', 'repair')
+                        ->where('is_active', true)
+                        ->orderBy('sort_order')
+                        ->value('id');
+            }
+
             $repair = Repair::create([
-                'shop_id' => $data['shop_id'],
-                'parent_repair_id' => $data['parent_repair_id'] ?? null, // ← add
-                'is_warranty_return' => $data['is_warranty_return'] ?? false, // ← add
-                'customer_id' => $data['customer_id'] ?? null,
-                'status_id' => $data['status_id'],
-                'created_by' => auth()->id(),
-                'assigned_to' => $data['assigned_to'] ?? null,
-                'total_price' => $totalPrice,
-                'discount' => $discount,
-                'final_price' => $finalPrice,
-                'book_in_date' => $data['book_in_date'] ?? today(),
-                'completion_date' => $data['completion_date'] ?? null,
-                'delivery_type' => $data['delivery_type'],
-                'notes' => $data['notes'] ?? null,
+                'shop_id'            => $data['shop_id'],
+                'parent_repair_id'   => $data['parent_repair_id'] ?? null,
+                'is_warranty_return' => $data['is_warranty_return'] ?? false,
+                'customer_id'        => $data['customer_id'] ?? null,
+                'status_id'          => $statusId,
+                'created_by'         => auth()->id(),
+                'assigned_to'        => $data['assigned_to'] ?? null,
+                'total_price'        => $totalPrice,
+                'discount'           => $discount,
+                'final_price'        => $finalPrice,
+                'book_in_date'       => $data['book_in_date'] ?? today(),
+                'completion_date'    => $data['completion_date'] ?? null,
+                'delivery_type'      => $data['delivery_type'],
+                'notes'              => $data['notes'] ?? null,
             ]);
 
             // ── Step 3: Create devices + parts ────────
             foreach ($data['devices'] ?? [] as $deviceData) {
-                $this->_createDevice($repair, $deviceData, $data['status_id']);
+                $this->_createDevice($repair, $deviceData, $statusId);
             }
 
             // ── Step 4: Save payments ─────────────────
@@ -78,9 +94,22 @@ class RepairService
         $deviceStatusId = !empty($deviceData['status_id']) ? $deviceData['status_id'] : $statusId;
 
         // Resolve warranty expiry
-        $warrantyDays = !empty($deviceData['warranty_days']) ? (int) $deviceData['warranty_days'] : null;
+        // -1 = under warranty (existing), 0/null = none, >0 = new warranty
+        $warrantyDays   = isset($deviceData['warranty_days']) ? (int) $deviceData['warranty_days'] : null;
+        $warrantyExpiry = null;
+        $warrantyStatus = $deviceData['warranty_status'] ?? 'none';
 
-        $warrantyExpiry = $warrantyDays ? now()->addDays($warrantyDays)->toDateString() : null;
+        if ($warrantyDays === -1) {
+            // Under warranty — no new expiry, keep status from form
+            $warrantyStatus = 'under_warranty';
+            $warrantyDays   = null;
+        } elseif ($warrantyDays > 0) {
+            $warrantyExpiry = now()->addDays($warrantyDays)->toDateString();
+            $warrantyStatus = 'active';
+        } else {
+            $warrantyDays   = null;
+            $warrantyStatus = 'none';
+        }
 
         $device = $repair->devices()->create([
             'device_name' => $deviceData['device_name'],
@@ -94,8 +123,8 @@ class RepairService
     ? implode(', ', array_filter($deviceData['repair_types']))
     : ($deviceData['repair_type'] ?? null),
             'notes' => $deviceData['notes'] ?? null,
-            'warranty_status' => $deviceData['warranty_status'] ?? 'none',
-            'warranty_days' => $warrantyDays,
+            'warranty_status'      => $warrantyStatus,
+            'warranty_days'        => $warrantyDays,
             'warranty_expiry_date' => $warrantyExpiry,
             'price' => (float) ($deviceData['price'] ?? 0),
         ]);
@@ -195,7 +224,135 @@ foreach ($typesToSave as $typeName) {
     }
 
     // -----------------------------------------------
-    // Determine and update payment status
+    // Update repair — core fields + full device sync
+    // -----------------------------------------------
+    public function updateRepair(Repair $repair, array $data): Repair
+    {
+        return DB::transaction(function () use ($repair, $data) {
+
+            // ── Step 1: Sync devices ──────────────────────
+            $submittedDevices = $data['devices'] ?? [];
+
+            // Recalculate total from submitted device prices
+            $newTotalPrice = collect($submittedDevices)
+                ->sum(fn($d) => (float) ($d['price'] ?? 0));
+
+            $discount   = (float) ($data['discount'] ?? $repair->discount);
+            $finalPrice = max(0, $newTotalPrice - $discount);
+
+            // ── Step 2: Update core repair record ─────────
+            $repair->update([
+                'customer_id'     => $data['customer_id']     ?? $repair->customer_id,
+                'book_in_date'    => $data['book_in_date']    ?? $repair->book_in_date,
+                'completion_date' => $data['completion_date'] ?? $repair->completion_date,
+                'delivery_type'   => $data['delivery_type'],
+                'notes'           => $data['notes']           ?? $repair->notes,
+                'discount'        => $discount,
+                'total_price'     => $newTotalPrice,
+                'final_price'     => $finalPrice,
+            ]);
+
+            // ── Step 3: Remove deleted devices ────────────
+            $submittedExistingIds = collect($submittedDevices)
+                ->pluck('existing_device_id')
+                ->filter()
+                ->map(fn($id) => (int) $id)
+                ->toArray();
+
+            $repair->devices()
+                ->whereNotIn('id', $submittedExistingIds)
+                ->each(function ($device) {
+                    $device->parts()->delete();
+                    $device->delete();
+                });
+
+            // ── Step 4: Update or create devices ──────────
+            foreach ($submittedDevices as $deviceData) {
+                $existingId = !empty($deviceData['existing_device_id'])
+                    ? (int) $deviceData['existing_device_id']
+                    : null;
+
+                $issueString = collect($deviceData['issues'] ?? [])
+                    ->map(fn($i) => $i['label'] ?? $i)
+                    ->filter()
+                    ->implode(', ');
+
+                $repairTypeString = !empty($deviceData['repair_types'])
+                    ? implode(', ', array_filter($deviceData['repair_types']))
+                    : ($deviceData['repair_type'] ?? null);
+
+                // Resolve warranty
+                $warrantyDays   = isset($deviceData['warranty_days']) ? (int) $deviceData['warranty_days'] : null;
+                $warrantyExpiry = null;
+                $warrantyStatus = $deviceData['warranty_status'] ?? 'none';
+
+                if ($warrantyDays === -1) {
+                    $warrantyStatus = 'under_warranty';
+                    $warrantyDays   = null;
+                } elseif ($warrantyDays > 0) {
+                    $warrantyExpiry = now()->addDays($warrantyDays)->toDateString();
+                    $warrantyStatus = 'active';
+                } else {
+                    $warrantyDays   = null;
+                    $warrantyStatus = 'none';
+                }
+
+                $deviceAttributes = [
+                    'device_name'        => $deviceData['device_name'],
+                    'device_type_id'     => $deviceData['device_type_id'] ?? null,
+                    'status_id'          => $deviceData['status_id'] ?? null,
+                    'imei'               => $deviceData['imei'] ?? null,
+                    'color'              => $deviceData['color'] ?? null,
+                    'issue'              => $issueString ?: null,
+                    'repair_type'        => $repairTypeString,
+                    'notes'              => $deviceData['notes'] ?? null,
+                    'warranty_status'    => $warrantyStatus,
+                    'warranty_days'      => $warrantyDays,
+                    'warranty_expiry_date' => $warrantyExpiry,
+                    'price'              => (float) ($deviceData['price'] ?? 0),
+                ];
+
+                if ($existingId) {
+                    $device = $repair->devices()->find($existingId);
+                    if ($device) {
+                        $device->update($deviceAttributes);
+                        // Sync parts: delete all then re-create
+                        $device->parts()->delete();
+                    } else {
+                        $device = $repair->devices()->create($deviceAttributes);
+                    }
+                } else {
+                    $device = $repair->devices()->create($deviceAttributes);
+                }
+
+                // Re-create parts
+                foreach ($deviceData['parts'] ?? [] as $partData) {
+                    if (empty($partData['name'])) continue;
+                    $this->_createPart($device, $partData, $repair);
+                }
+
+                // Save repair type usage
+                $typesToSave = !empty($deviceData['repair_types'])
+                    ? array_filter($deviceData['repair_types'])
+                    : (isset($repairTypeString) && $repairTypeString ? [$repairTypeString] : []);
+
+                foreach ($typesToSave as $typeName) {
+                    if (!trim($typeName)) continue;
+                    $rt = RepairType::findOrCreateForShop($repair->shop_id, trim($typeName));
+                    $rt->incrementUsage();
+                }
+            }
+
+            // ── Step 5: Update customer balance ───────────
+            if ($repair->customer_id) {
+                $this->_updateCustomerBalance($repair->fresh());
+            }
+
+            return $repair->fresh(['customer', 'status', 'devices.parts', 'payments']);
+        });
+    }
+
+    // -----------------------------------------------
     // -----------------------------------------------
     private function _updateRepairPaymentStatus(Repair $repair): void
     {

@@ -219,26 +219,28 @@
             </div>
 
             {{-- CARD Fields --}}
-            <div id="repair-fields-card"
-                 style="display:none;"
-                 class="flex flex-col items-center py-4 gap-3">
-                <div class="w-16 h-16 rounded-2xl
-                            bg-gradient-to-br from-amber-400 to-amber-500
-                            flex items-center justify-center
-                            shadow-lg shadow-amber-200 dark:shadow-amber-900/30">
-                    <svg class="w-8 h-8 text-white" fill="none"
-                         stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0
-                                 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8
-                                 a3 3 0 003 3z"/>
-                    </svg>
+            <div id="repair-fields-card" style="display:none;">
+
+                <p class="text-xs font-bold text-gray-500 dark:text-gray-400
+                           uppercase tracking-wider mb-2">Amount £</p>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2
+                                 text-gray-400 font-bold pointer-events-none">£</span>
+                    <input type="number"
+                           id="repair-card-amount"
+                           min="0.01"
+                           step="0.01"
+                           placeholder="0"
+                           class="w-full pl-8 pr-4 py-3
+                                  border border-gray-200 dark:border-gray-700
+                                  rounded-xl text-xl font-black outline-none
+                                  bg-gray-50 dark:bg-gray-800
+                                  text-gray-900 dark:text-white
+                                  focus:border-amber-400
+                                  focus:ring-2 focus:ring-amber-400/10
+                                  focus:bg-white dark:focus:bg-gray-900
+                                  transition-all">
                 </div>
-                <p class="text-sm font-semibold
-                           text-gray-600 dark:text-gray-400">
-                    Present card to terminal
-                </p>
             </div>
 
             {{-- SPLIT Fields --}}
@@ -434,6 +436,23 @@
                               transition-all">
             </div>
 
+        </div>
+
+        {{-- Inline validation error --}}
+        <div id="repair-payment-error"
+             style="display:none;"
+             class="mx-6 mb-4 px-4 py-3 rounded-xl text-sm font-semibold
+                    bg-red-50 dark:bg-red-900/20
+                    border border-red-200 dark:border-red-800
+                    text-red-600 dark:text-red-400
+                    flex items-center gap-2">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none"
+                 stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <span id="repair-payment-error-text"></span>
         </div>
 
         {{-- Footer --}}

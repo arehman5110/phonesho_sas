@@ -284,6 +284,7 @@ const RepairPayments = (() => {
         // Show existing payments
         _renderExistingPayments();
 
+        _clearPaymentError();
         _showModal('repair-payment-modal', 'repair-payment-modal-box');
         setTimeout(() => _el('repair-payment-amount')?.focus(), 200);
     }
@@ -318,6 +319,13 @@ const RepairPayments = (() => {
             const split1 = _el('repair-split1-amount');
             if (split1) split1.value = '';
         }
+        // Auto fill card amount with outstanding
+        if (method === 'card') {
+            const cardInput = _el('repair-card-amount');
+            if (cardInput) cardInput.value = _getOutstanding().toFixed(2);
+        }
+        // Clear inline error when switching method
+        _clearPaymentError();
     }
 
     function setQuickAmount(amount) {
@@ -338,6 +346,7 @@ const RepairPayments = (() => {
     }
 
     function updateChange() {
+        _clearPaymentError();
         const tendered  = parseFloat(_el('repair-payment-amount')?.value) || 0;
         const outstanding = _getOutstanding();
         const change    = tendered - outstanding;
@@ -364,17 +373,36 @@ const RepairPayments = (() => {
     // ADD PAYMENT
     // ─────────────────────────────────────────────────────────────
     function addPayment() {
-        const method = state.selectedMethod;
-        const note   = _el('repair-payment-note')?.value || null;
+        const method      = state.selectedMethod;
+        const note        = _el('repair-payment-note')?.value || null;
+        const outstanding = _getOutstanding();
+        const total       = _getTotal();
+
+        // Guard — nothing to charge
+        if (total <= 0) {
+            _toast('Add device prices before taking payment', 'error');
+            return;
+        }
+        if (outstanding <= 0) {
+            _toast('Repair is already fully paid', 'error');
+            return;
+        }
 
         if (method === 'split') {
-            const amount1  = parseFloat(_el('repair-split1-amount')?.value) || 0;
-            const amount2  = parseFloat(_el('repair-split2-amount')?.value) || 0;
-            const method1  = _el('repair-split1-method')?.value || 'cash';
-            const method2  = _el('repair-split2-method')?.value || 'card';
+            const amount1 = parseFloat(_el('repair-split1-amount')?.value) || 0;
+            const amount2 = parseFloat(_el('repair-split2-amount')?.value) || 0;
+            const method1 = _el('repair-split1-method')?.value || 'cash';
+            const method2 = _el('repair-split2-method')?.value || 'card';
 
             if (amount1 <= 0 && amount2 <= 0) {
-                _toast('Please enter payment amounts', 'error');
+                _showPaymentError('Please enter payment amounts');
+                return;
+            }
+            const splitTotal = amount1 + amount2;
+            if (splitTotal > outstanding + 0.001) {
+                _showPaymentError(
+                    `Total split amount ${_fmt(splitTotal)} exceeds outstanding ${_fmt(outstanding)}`
+                );
                 return;
             }
 
@@ -387,7 +415,6 @@ const RepairPayments = (() => {
                     label     : `${_capitalize(method1)} (split)`,
                 });
             }
-
             if (amount2 > 0) {
                 state.payments.push({
                     method    : 'split',
@@ -399,40 +426,77 @@ const RepairPayments = (() => {
             }
 
         } else if (method === 'card') {
-            // Card — use outstanding amount
-            const outstanding = _getOutstanding();
-            if (outstanding <= 0) {
-                _toast('No outstanding balance', 'error');
+            // Card — user can specify amount or defaults to outstanding
+            const cardInput  = _el('repair-card-amount');
+            const cardAmount = cardInput
+                ? (parseFloat(cardInput.value) || outstanding)
+                : outstanding;
+
+            if (cardAmount <= 0) {
+                _showPaymentError('Enter a valid card amount');
+                return;
+            }
+            if (cardAmount > outstanding + 0.001) {
+                _showPaymentError(
+                    `Card amount ${_fmt(cardAmount)} exceeds outstanding ${_fmt(outstanding)}`
+                );
                 return;
             }
 
             state.payments.push({
                 method    : 'card',
                 splitPart : null,
-                amount    : outstanding,
+                amount    : cardAmount,
                 note      : note,
                 label     : 'Card',
+            });
+
+        } else if (method === 'trade') {
+            const tradeVal = parseFloat(_el('repair-trade-value')?.value) || 0;
+            if (tradeVal <= 0) {
+                _showPaymentError('Enter a trade-in value');
+                return;
+            }
+            if (tradeVal > outstanding + 0.001) {
+                _showPaymentError(
+                    `Trade value ${_fmt(tradeVal)} exceeds outstanding ${_fmt(outstanding)}`
+                );
+                return;
+            }
+
+            state.payments.push({
+                method    : 'trade',
+                splitPart : null,
+                amount    : tradeVal,
+                note      : note,
+                label     : 'Trade-in',
             });
 
         } else {
             // Cash
             const amount = parseFloat(_el('repair-payment-amount')?.value) || 0;
             if (amount <= 0) {
-                _toast('Please enter an amount', 'error');
+                _showPaymentError('Please enter an amount');
                 return;
             }
-
-            // Cap at outstanding
-            const capped = Math.min(amount, _getOutstanding());
+            if (amount > outstanding + 0.001) {
+                _showPaymentError(
+                    `Amount ${_fmt(amount)} exceeds outstanding ${_fmt(outstanding)}`
+                );
+                return;
+            }
 
             state.payments.push({
                 method    : 'cash',
                 splitPart : null,
-                amount    : capped,
+                amount    : amount,
                 note      : note,
                 label     : 'Cash',
             });
         }
+
+        // Clear error on success
+        _clearPaymentError();
 
         // Update UI
         _renderRightPanelPayments();
@@ -460,6 +524,43 @@ const RepairPayments = (() => {
         _renderRightPanelPayments();
         _updatePaymentSummary();
         _injectPaymentInputs();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // PAYMENT VALIDATION ERROR DISPLAY
+    // ─────────────────────────────────────────────────────────────
+    function _showPaymentError(msg) {
+        let errEl = _el('repair-payment-error');
+        if (!errEl) {
+            // Create inline error div just above footer buttons
+            const footer = document.querySelector('#repair-payment-modal .px-6.pb-6');
+            if (!footer) { _toast(msg, 'error'); return; }
+            errEl = document.createElement('div');
+            errEl.id        = 'repair-payment-error';
+            errEl.className = 'mx-6 mb-4 px-4 py-3 rounded-xl text-sm font-semibold ' +
+                              'bg-red-50 dark:bg-red-900/20 border border-red-200 ' +
+                              'dark:border-red-800 text-red-600 dark:text-red-400 ' +
+                              'flex items-center gap-2';
+            errEl.innerHTML = '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                              '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" ' +
+                              'd="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+                              '<span id="repair-payment-error-text"></span>';
+            footer.parentNode.insertBefore(errEl, footer);
+        }
+        const textEl = document.getElementById('repair-payment-error-text');
+        if (textEl) textEl.textContent = msg;
+        errEl.style.display = 'flex';
+
+        // Shake animation
+        errEl.style.animation = 'none';
+        requestAnimationFrame(() => {
+            errEl.style.animation = 'shake 0.3s ease';
+        });
+    }
+
+    function _clearPaymentError() {
+        const errEl = _el('repair-payment-error');
+        if (errEl) errEl.style.display = 'none';
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -759,6 +860,10 @@ function updateWarrantyExpiry(input) {
         updateDiscountPreview,
         applyDiscount,
         removeDiscount,
+        setDiscountFromEdit(amount) {
+            state.discountAmount = parseFloat(amount) || 0;
+            updateTotals();
+        },
         // Payment
         openPaymentModal,
         closePaymentModal,
@@ -770,6 +875,11 @@ function updateWarrantyExpiry(input) {
         addPayment,
         removePayment,
         clearPayments,
+        clearPaymentError : _clearPaymentError,
+        setDiscountFromEdit(amount) {
+            state.discountAmount = parseFloat(amount) || 0;
+            updateTotals();
+        },
         
     };
 

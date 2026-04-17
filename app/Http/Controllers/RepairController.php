@@ -27,6 +27,7 @@ class RepairController extends Controller
             'customer',
             'status',
             'devices.deviceType',
+            'devices.status',
             'devices.parts.product',
             'payments',
             'createdBy',
@@ -39,11 +40,15 @@ class RepairController extends Controller
             $query->search($request->search);
         }
 
-        // ── Status filter (multiple) ──────────────────
+        // ── Status filter — matches repairs where ANY device has the selected status
         if ($request->filled('statuses')) {
-            $statusIds = is_array($request->statuses) ? $request->statuses : explode(',', $request->statuses);
+            $statusIds = is_array($request->statuses)
+                ? $request->statuses
+                : explode(',', $request->statuses);
 
-            $query->whereIn('status_id', $statusIds);
+            $query->whereHas('devices', function ($q) use ($statusIds) {
+                $q->whereIn('status_id', $statusIds);
+            });
         }
 
         // ── Date range ────────────────────────────────
@@ -102,20 +107,28 @@ class RepairController extends Controller
                 : null,
             'devices' => $repair->devices->map(
                 fn($d) => [
-                    'id' => $d->id,
-                    'device_name' => $d->device_name,
-                    'device_type' => $d->deviceType?->name,
-                    'imei' => $d->imei,
-                    'color' => $d->color,
-                    'issue' => $d->issue,
-                    'repair_type' => $d->repair_type,
-                    'warranty' => $d->warranty_label,
-                    'price' => $d->price,
-                    'notes' => $d->notes,
-                    'parts' => $d->parts->map(
+                    'id'              => $d->id,
+                    'device_name'     => $d->device_name,
+                    'device_type'     => $d->deviceType?->name,
+                    'imei'            => $d->imei,
+                    'color'           => $d->color,
+                    'issue'           => $d->issue,
+                    'repair_type'     => $d->repair_type,
+                    'warranty_status' => $d->warranty_status,
+                    'warranty_label'  => $d->warranty_label,
+                    'warranty_expiry' => $d->warranty_expiry_date?->format('d/m/Y'),
+                    'price'           => $d->price,
+                    'notes'           => $d->notes,
+                    'status'          => $d->status ? [
+                        'id'           => $d->status->id,
+                        'name'         => $d->status->name,
+                        'color'        => $d->status->color,
+                        'is_completed' => (bool) $d->status->is_completed,
+                    ] : null,
+                    'parts'           => $d->parts->map(
                         fn($p) => [
-                            'name' => $p->name,
-                            'quantity' => $p->quantity,
+                            'name'       => $p->name,
+                            'quantity'   => $p->quantity,
                             'product_id' => $p->product_id,
                         ],
                     ),
@@ -158,20 +171,10 @@ class RepairController extends Controller
 {
     $shopId = auth()->user()->active_shop_id;
 
-    $statuses = Status::forShop($shopId)
-        ->ofType('repair')
-        ->active()
-        ->ordered()
-        ->get();
-
     $deviceTypes = DeviceType::forShop($shopId)
         ->active()
         ->ordered()
         ->get();
-
-    $staff = User::whereHas('shops', function ($q) use ($shopId) {
-        $q->where('shop_id', $shopId);
-    })->orderBy('name')->get();
 
     $issueSuggestions = $this->_getIssueSuggestions();
 
@@ -190,16 +193,14 @@ class RepairController extends Controller
 
     // Pre-render device card template
     $deviceCardTemplate = view('repairs.partials.device-card', [
-        'deviceTypes'    => $deviceTypes,
+        'deviceTypes'      => $deviceTypes,
         'issueSuggestions' => $issueSuggestions,
-        'repairTypes'    => $repairTypes,
-        'deviceStatuses' => $deviceStatuses,
+        'repairTypes'      => $repairTypes,
+        'deviceStatuses'   => $deviceStatuses,
     ])->render();
 
     return view('repairs.create', compact(
-        'statuses',
         'deviceTypes',
-        'staff',
         'issueSuggestions',
         'repairTypes',
         'deviceStatuses',
@@ -245,17 +246,295 @@ class RepairController extends Controller
     }
 
     // -----------------------------------------------
+    // GET /repairs/{repair}/edit
+    // -----------------------------------------------
+    public function edit(Repair $repair)
+    {
+        abort_if($repair->shop_id !== auth()->user()->active_shop_id, 403);
+
+        $shopId = auth()->user()->active_shop_id;
+
+        $repair->load([
+            'customer', 'status', 'devices.deviceType',
+            'devices.parts.product', 'devices.status',
+            'payments', 'createdBy', 'parentRepair',
+        ]);
+
+        $deviceTypes      = DeviceType::forShop($shopId)->active()->ordered()->get();
+        $issueSuggestions = $this->_getIssueSuggestions();
+        $repairTypes      = RepairType::forShop($shopId)->popular()->limit(20)->get(['id', 'name']);
+        $deviceStatuses   = Status::forShop($shopId)->ofType('repair')->active()->ordered()->get();
+
+        // Template used for JS to clone when adding a new device
+        $deviceCardTemplate = view('repairs.partials.device-card', [
+            'deviceTypes'      => $deviceTypes,
+            'issueSuggestions' => $issueSuggestions,
+            'repairTypes'      => $repairTypes,
+            'deviceStatuses'   => $deviceStatuses,
+        ])->render();
+
+        // Pre-render each existing device at its index with __INDEX__ replaced
+        $preRenderedDevices = $repair->devices->values()->map(function ($device, $index) use (
+            $deviceTypes, $issueSuggestions, $repairTypes, $deviceStatuses
+        ) {
+            $html = view('repairs.partials.device-card', [
+                'deviceTypes'      => $deviceTypes,
+                'issueSuggestions' => $issueSuggestions,
+                'repairTypes'      => $repairTypes,
+                'deviceStatuses'   => $deviceStatuses,
+            ])->render();
+
+            $html = str_replace('__INDEX__',  (string) $index,       $html);
+            $html = str_replace('__NUMBER__', (string) ($index + 1), $html);
+
+            return $html;
+        })->toArray();
+
+        // Existing device data for JS to fill into the pre-rendered cards
+        $existingDevicesData = $repair->devices->values()->map(fn($d) => [
+            'id'             => $d->id,
+            'device_name'    => $d->device_name,
+            'device_type_id' => $d->device_type_id,
+            'status_id'      => $d->status_id,
+            'imei'           => $d->imei,
+            'color'          => $d->color,
+            'issue'          => $d->issue,
+            'repair_type'    => $d->repair_type,
+            'warranty_days'  => $d->warranty_days ?? 180,
+            'warranty_status'=> $d->warranty_status ?? 'active',
+            'price'          => (float) $d->price,
+            'notes'          => $d->notes,
+            'parts'          => $d->parts->map(fn($p) => [
+                'name'       => $p->name,
+                'product_id' => $p->product_id,
+                'quantity'   => (int) $p->quantity,
+                'price'      => (float) ($p->price ?? 0),
+                'is_custom'  => is_null($p->product_id),
+            ])->toArray(),
+        ])->toArray();
+
+        $summary = $this->repairService->getSummary($repair);
+
+        return view('repairs.edit', compact(
+            'repair', 'summary',
+            'deviceTypes', 'issueSuggestions',
+            'repairTypes', 'deviceStatuses',
+            'deviceCardTemplate',
+            'existingDevicesData'
+        ));
+    }
+
+    // -----------------------------------------------
+    // PUT /repairs/{repair}
+    // -----------------------------------------------
+    public function update(Request $request, Repair $repair): mixed
+    {
+        abort_if($repair->shop_id !== auth()->user()->active_shop_id, 403);
+
+        $validated = $request->validate([
+            'customer_id'         => ['nullable', 'exists:customers,id'],
+            'book_in_date'        => ['nullable', 'date'],
+            'completion_date'     => ['nullable', 'date'],
+            'delivery_type'       => ['required', 'in:collection,delivery'],
+            'notes'               => ['nullable', 'string', 'max:2000'],
+            'discount'            => ['nullable', 'numeric', 'min:0'],
+            'existing_device_ids' => ['nullable', 'array'],
+
+            // Device fields — same as StoreRepairRequest
+            'devices'                         => ['nullable', 'array'],
+            'devices.*.existing_device_id'    => ['nullable', 'integer'],
+            'devices.*.device_name'           => ['required_with:devices', 'string', 'max:200'],
+            'devices.*.device_type_id'        => ['nullable', 'exists:device_types,id'],
+            'devices.*.status_id'             => ['nullable', 'exists:statuses,id'],
+            'devices.*.imei'                  => ['nullable', 'string', 'max:100'],
+            'devices.*.color'                 => ['nullable', 'string', 'max:100'],
+            'devices.*.warranty_days'         => ['nullable', 'integer', 'min:-1'],
+            'devices.*.warranty_status'       => ['nullable', 'string'],
+            'devices.*.price'                 => ['nullable', 'numeric', 'min:0'],
+            'devices.*.notes'                 => ['nullable', 'string', 'max:2000'],
+            'devices.*.issues'                => ['nullable', 'array'],
+            'devices.*.issues.*.label'        => ['nullable', 'string', 'max:255'],
+            'devices.*.repair_type_tags'      => ['nullable', 'array'],
+            'devices.*.repair_types'          => ['nullable', 'array'],
+            'devices.*.parts'                 => ['nullable', 'array'],
+            'devices.*.parts.*.name'          => ['nullable', 'string', 'max:255'],
+            'devices.*.parts.*.product_id'    => ['nullable', 'exists:products,id'],
+            'devices.*.parts.*.quantity'      => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $this->repairService->updateRepair($repair, array_merge($validated, [
+                'shop_id' => $repair->shop_id,
+                'devices' => $request->input('devices', []),
+            ]));
+
+            return redirect()
+                ->route('repairs.show', $repair)
+                ->with('success', "Repair {$repair->reference} updated.");
+        } catch (\Exception $e) {
+            return back()->withInput()
+                ->withErrors(['error' => 'Update failed: ' . $e->getMessage()]);
+        }
+    }
+
+    // -----------------------------------------------
+    // DELETE /repairs/{repair}
+    // -----------------------------------------------
+    public function destroy(Repair $repair): mixed
+    {
+        abort_if($repair->shop_id !== auth()->user()->active_shop_id, 403);
+
+        $reference = $repair->reference;
+        $repair->delete();
+
+        if (request()->ajax()) {
+            return response()->json(['success' => true, 'message' => "{$reference} deleted."]);
+        }
+
+        return redirect()->route('repairs.index')
+            ->with('success', "Repair {$reference} deleted.");
+    }
+
+    // -----------------------------------------------
+    // POST /repairs/{repair}/payment  (AJAX)
+    // -----------------------------------------------
+    public function addPayment(Request $request, Repair $repair): \Illuminate\Http\JsonResponse
+    {
+        abort_if($repair->shop_id !== auth()->user()->active_shop_id, 403);
+
+        $validated = $request->validate([
+            'method'     => ['required', 'string'],
+            'amount'     => ['required', 'numeric', 'min:0.01'],
+            'note'       => ['nullable', 'string', 'max:500'],
+            'split_part' => ['nullable', 'string'],
+        ]);
+
+        // Guard — don't allow payments exceeding the outstanding balance
+        $repair->loadMissing('payments');
+        $totalPaid   = (float) $repair->payments->sum('amount');
+        $outstanding = max(0, (float) $repair->final_price - $totalPaid);
+
+        if ((float) $validated['amount'] > $outstanding + 0.01) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment of £' . number_format($validated['amount'], 2) .
+                             ' exceeds outstanding balance of £' . number_format($outstanding, 2) . '.',
+            ], 422);
+        }
+
+        $payment = \App\Models\Payment::create([
+            'shop_id'      => $repair->shop_id,
+            'user_id'      => auth()->id(),
+            'payable_type' => Repair::class,
+            'payable_id'   => $repair->id,
+            'method'       => $validated['method'],
+            'amount'       => $validated['amount'],
+            'split_part'   => $validated['split_part'] ?? null,
+            'reference'    => $repair->reference,
+            'note'         => $validated['note'] ?? null,
+        ]);
+
+        $repair->refresh();
+        $summary = $this->repairService->getSummary($repair->load('payments'));
+
+        return response()->json([
+            'success'    => true,
+            'message'    => 'Payment recorded.',
+            'payment_id' => $payment->id,
+            'summary'    => $summary,
+        ]);
+    }
+
+    // -----------------------------------------------
+    // DELETE /repairs/{repair}/payment/{payment}  (AJAX)
+    // -----------------------------------------------
+    public function deletePayment(Repair $repair, \App\Models\Payment $payment): \Illuminate\Http\JsonResponse
+    {
+        abort_if($repair->shop_id !== auth()->user()->active_shop_id, 403);
+        abort_if($payment->payable_id !== $repair->id, 403);
+
+        $payment->delete();
+
+        $repair->refresh();
+        $summary = $this->repairService->getSummary($repair->load('payments'));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment removed.',
+            'summary' => $summary,
+        ]);
+    }
+
+    // -----------------------------------------------
+    // PATCH /repairs/{repair}/status  (AJAX)
+    // -----------------------------------------------
+    public function updateStatus(Request $request, Repair $repair): \Illuminate\Http\JsonResponse
+    {
+        abort_if($repair->shop_id !== auth()->user()->active_shop_id, 403);
+
+        $validated = $request->validate([
+            'status_id' => ['required', 'exists:statuses,id'],
+        ]);
+
+        $repair->update(['status_id' => $validated['status_id']]);
+        $repair->load('status');
+
+        return response()->json([
+            'success' => true,
+            'status'  => [
+                'id'    => $repair->status->id,
+                'name'  => $repair->status->name,
+                'color' => $repair->status->color,
+            ],
+        ]);
+    }
+
+    // -----------------------------------------------
+    // PATCH /repairs/{repair}/device/{device}/status  (AJAX)
+    // -----------------------------------------------
+    public function updateDeviceStatus(Request $request, Repair $repair, \App\Models\RepairDevice $device): \Illuminate\Http\JsonResponse
+    {
+        abort_if($repair->shop_id !== auth()->user()->active_shop_id, 403);
+        abort_if($device->repair_id !== $repair->id, 403);
+
+        $validated = $request->validate([
+            'status_id' => ['required', 'exists:statuses,id'],
+        ]);
+
+        $device->update(['status_id' => $validated['status_id']]);
+        $device->load('status');
+
+        return response()->json([
+            'success' => true,
+            'status'  => [
+                'id'           => $device->status->id,
+                'name'         => $device->status->name,
+                'color'        => $device->status->color,
+                'is_completed' => (bool) $device->status->is_completed,
+            ],
+        ]);
+    }
+
+    // -----------------------------------------------
     // GET /repairs/{repair}
     // -----------------------------------------------
     public function show(Repair $repair)
     {
         abort_if($repair->shop_id !== auth()->user()->active_shop_id, 403);
 
-        $repair->load(['customer', 'status', 'devices.deviceType', 'devices.parts.product', 'devices.status', 'payments', 'createdBy', 'assignedTo']);
+        $shopId = auth()->user()->active_shop_id;
 
-        $summary = $this->repairService->getSummary($repair);
+        $repair->load([
+            'customer', 'status',
+            'devices.deviceType', 'devices.parts.product', 'devices.status',
+            'payments', 'createdBy', 'assignedTo', 'parentRepair',
+        ]);
 
-        return view('repairs.show', compact('repair', 'summary'));
+        $summary        = $this->repairService->getSummary($repair);
+        $repairStatuses = Status::forShop($shopId)->ofType('repair')->active()->ordered()->get();
+        $deviceStatuses = $repairStatuses;
+
+        return view('repairs.show', compact('repair', 'summary', 'repairStatuses', 'deviceStatuses'));
     }
 
     // -----------------------------------------------

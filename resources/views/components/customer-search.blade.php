@@ -164,7 +164,6 @@
                        class="text-xs text-indigo-500 dark:text-indigo-400 mt-0.5 truncate"
                        x-text="selectedCustomer?.address">
                     </p>
-                    {{-- Notes --}}
                     <p x-show="selectedCustomer?.notes"
                        class="text-xs text-indigo-500 dark:text-indigo-400 mt-1 italic"
                        x-text="'📝 ' + selectedCustomer?.notes">
@@ -194,6 +193,58 @@
                 Edit
             </button>
         </div>
+
+        {{-- ── Customer Stats ─────────────────────── --}}
+        <div x-show="customerStats"
+             x-transition
+             class="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800"
+             style="display:none;">
+            <div class="grid grid-cols-4 gap-2">
+
+                {{-- Total Repairs --}}
+                <div class="bg-white dark:bg-gray-900/60 rounded-xl p-2.5 text-center">
+                    <p class="text-xs text-gray-400 leading-tight mb-0.5">Repairs</p>
+                    <p class="text-base font-black text-gray-900 dark:text-white leading-none"
+                       x-text="customerStats?.total_repairs ?? '—'"></p>
+                </div>
+
+                {{-- Total Spent --}}
+                <div class="bg-white dark:bg-gray-900/60 rounded-xl p-2.5 text-center">
+                    <p class="text-xs text-gray-400 leading-tight mb-0.5">Spent</p>
+                    <p class="text-base font-black text-indigo-600 dark:text-indigo-400 leading-none"
+                       x-text="customerStats?.total_spent ? '£' + parseFloat(customerStats.total_spent).toFixed(0) : '£0'"></p>
+                </div>
+
+                {{-- Outstanding --}}
+                <div class="bg-white dark:bg-gray-900/60 rounded-xl p-2.5 text-center">
+                    <p class="text-xs text-gray-400 leading-tight mb-0.5">Owed</p>
+                    <p class="text-base font-black leading-none"
+                       :class="(customerStats?.outstanding ?? 0) > 0 ? 'text-red-500' : 'text-emerald-500'"
+                       x-text="customerStats?.outstanding ? '£' + parseFloat(customerStats.outstanding).toFixed(0) : '£0'"></p>
+                </div>
+
+                {{-- Last Visit --}}
+                <div class="bg-white dark:bg-gray-900/60 rounded-xl p-2.5 text-center">
+                    <p class="text-xs text-gray-400 leading-tight mb-0.5">Last Visit</p>
+                    <p class="text-xs font-bold text-gray-700 dark:text-gray-300 leading-none"
+                       x-text="customerStats?.last_visit ?? '—'"></p>
+                </div>
+
+            </div>
+        </div>
+
+        {{-- Stats loading --}}
+        <div x-show="statsLoading"
+             class="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800
+                    flex items-center gap-2 text-xs text-indigo-400"
+             style="display:none;">
+            <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor"
+                        stroke-width="4" opacity="0.25"/>
+                <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            Loading stats...
+        </div>
     </div>
 
 </div>
@@ -206,6 +257,8 @@ document.addEventListener('alpine:init', () => {
         searchVal        : '',
         selectedId       : '',
         selectedCustomer : null,
+        customerStats    : null,
+        statsLoading     : false,
         results          : [],
         isOpen           : false,
         isLoading        : false,
@@ -265,11 +318,12 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        select(customer) {
+        async select(customer) {
             this.selectedId       = customer.id;
             this.selectedCustomer = customer;
             this.searchVal        = customer.name;
             this.isOpen           = false;
+            this.customerStats    = null;
 
             const el = document.getElementById('infoCustomer');
             if (el) el.textContent = customer.name;
@@ -277,11 +331,35 @@ document.addEventListener('alpine:init', () => {
             document.dispatchEvent(new CustomEvent('customer-selected', {
                 detail: customer
             }));
+
+            // Fetch stats
+            this._fetchStats(customer.id);
+        },
+
+        async _fetchStats(customerId) {
+            const statsUrl = (window.REPAIR_CONFIG?.routes?.customerStats
+                ?? '/api/customers/{id}/stats')
+                .replace('{id}', customerId);
+
+            this.statsLoading = true;
+            try {
+                const res  = await fetch(statsUrl, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await res.json();
+                this.customerStats = data;
+            } catch (e) {
+                this.customerStats = null;
+            } finally {
+                this.statsLoading = false;
+            }
         },
 
         clear() {
             this.selectedId       = '';
             this.selectedCustomer = null;
+            this.customerStats    = null;
+            this.statsLoading     = false;
             this.searchVal        = '';
             this.isOpen           = false;
             this.results          = [];

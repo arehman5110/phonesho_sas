@@ -23,7 +23,7 @@ class StoreRepairRequest extends FormRequest
             'customer_id' => ['nullable', 'exists:customers,id'],
 
             // Repair details
-            'status_id' => ['required', 'exists:statuses,id'],
+            'status_id' => ['nullable', 'exists:statuses,id'],
             'assigned_to' => ['nullable', 'exists:users,id'],
             'book_in_date' => ['nullable', 'date'],
             'completion_date' => ['nullable', 'date'],
@@ -40,7 +40,7 @@ class StoreRepairRequest extends FormRequest
             'devices.*.repair_type' => ['nullable', 'string', 'max:255'],
             'devices.*.notes' => ['nullable', 'string', 'max:2000'],
             'devices.*.warranty_status' => ['nullable', 'in:none,active,expired'],
-'devices.*.warranty_days'   => ['nullable', 'integer', 'min:0'],
+'devices.*.warranty_days'   => ['nullable', 'integer', 'min:-1'],
             'devices.*.price' => ['nullable', 'numeric', 'min:0'],
 
             // Issues (array of labels)
@@ -63,7 +63,7 @@ class StoreRepairRequest extends FormRequest
             'devices.*.repair_type'       => ['nullable', 'string', 'max:255'],
 'devices.*.repair_types'      => ['nullable', 'array'],
 'devices.*.repair_types.*'    => ['nullable', 'string', 'max:255'],
-            'devices.*.warranty_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'devices.*.warranty_days' => ['nullable', 'integer', 'min:-1', 'max:3650'],
             'devices.*.status_id' => ['nullable', 'exists:statuses,id'],
         ];
     }
