@@ -164,6 +164,7 @@
                        class="text-xs text-indigo-500 dark:text-indigo-400 mt-0.5 truncate"
                        x-text="selectedCustomer?.address">
                     </p>
+                    {{-- Notes --}}
                     <p x-show="selectedCustomer?.notes"
                        class="text-xs text-indigo-500 dark:text-indigo-400 mt-1 italic"
                        x-text="'📝 ' + selectedCustomer?.notes">
@@ -194,56 +195,57 @@
             </button>
         </div>
 
-        {{-- ── Customer Stats ─────────────────────── --}}
-        <div x-show="customerStats"
-             x-transition
-             class="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800"
-             style="display:none;">
-            <div class="grid grid-cols-4 gap-2">
+        {{-- Customer Stats Row --}}
+        <div class="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800
+                    flex items-center gap-3 flex-wrap">
 
-                {{-- Total Repairs --}}
-                <div class="bg-white dark:bg-gray-900/60 rounded-xl p-2.5 text-center">
-                    <p class="text-xs text-gray-400 leading-tight mb-0.5">Repairs</p>
-                    <p class="text-base font-black text-gray-900 dark:text-white leading-none"
-                       x-text="customerStats?.total_repairs ?? '—'"></p>
+            {{-- Loading --}}
+            <template x-if="statsLoading">
+                <span class="text-xs text-indigo-400">Loading stats...</span>
+            </template>
+
+            {{-- Stats --}}
+            <template x-if="!statsLoading && customerStats">
+                <div class="flex items-center gap-3 flex-wrap w-full">
+
+                    {{-- Spent --}}
+                    <div class="flex flex-col">
+                        <span class="text-sm font-black text-emerald-600 dark:text-emerald-400"
+                              x-text="'£' + parseFloat(customerStats.total_spent || 0).toFixed(2) + ' spent'">
+                        </span>
+                        <span class="text-xs font-semibold"
+                              :class="parseFloat(customerStats.balance || 0) > 0
+                                  ? 'text-red-500 dark:text-red-400'
+                                  : 'text-gray-400 dark:text-gray-500'"
+                              x-text="parseFloat(customerStats.balance || 0) > 0
+                                  ? '£' + parseFloat(customerStats.balance).toFixed(2) + ' balance due'
+                                  : 'No balance due'">
+                        </span>
+                    </div>
+
+                    {{-- Spacer --}}
+                    <div class="flex-1"></div>
+
+                    {{-- Jobs button --}}
+                    <a :href="'/repairs?search=' + encodeURIComponent(selectedCustomer?.phone || selectedCustomer?.name || '')"
+                       target="_blank"
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                              text-xs font-bold border border-indigo-300 dark:border-indigo-700
+                              text-indigo-600 dark:text-indigo-400
+                              bg-white dark:bg-indigo-900/30
+                              hover:bg-indigo-50 dark:hover:bg-indigo-900/50
+                              transition-colors">
+                        <span x-text="(customerStats.total_repairs || 0) + ' Job' + (customerStats.total_repairs !== 1 ? 's' : '')"></span>
+                        <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4
+                                     M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                    </a>
+
                 </div>
+            </template>
 
-                {{-- Total Spent --}}
-                <div class="bg-white dark:bg-gray-900/60 rounded-xl p-2.5 text-center">
-                    <p class="text-xs text-gray-400 leading-tight mb-0.5">Spent</p>
-                    <p class="text-base font-black text-indigo-600 dark:text-indigo-400 leading-none"
-                       x-text="customerStats?.total_spent ? '£' + parseFloat(customerStats.total_spent).toFixed(0) : '£0'"></p>
-                </div>
-
-                {{-- Outstanding --}}
-                <div class="bg-white dark:bg-gray-900/60 rounded-xl p-2.5 text-center">
-                    <p class="text-xs text-gray-400 leading-tight mb-0.5">Owed</p>
-                    <p class="text-base font-black leading-none"
-                       :class="(customerStats?.outstanding ?? 0) > 0 ? 'text-red-500' : 'text-emerald-500'"
-                       x-text="customerStats?.outstanding ? '£' + parseFloat(customerStats.outstanding).toFixed(0) : '£0'"></p>
-                </div>
-
-                {{-- Last Visit --}}
-                <div class="bg-white dark:bg-gray-900/60 rounded-xl p-2.5 text-center">
-                    <p class="text-xs text-gray-400 leading-tight mb-0.5">Last Visit</p>
-                    <p class="text-xs font-bold text-gray-700 dark:text-gray-300 leading-none"
-                       x-text="customerStats?.last_visit ?? '—'"></p>
-                </div>
-
-            </div>
-        </div>
-
-        {{-- Stats loading --}}
-        <div x-show="statsLoading"
-             class="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-800
-                    flex items-center gap-2 text-xs text-indigo-400"
-             style="display:none;">
-            <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" stroke="currentColor"
-                        stroke-width="4" opacity="0.25"/>
-                <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            Loading stats...
         </div>
     </div>
 
@@ -332,23 +334,16 @@ document.addEventListener('alpine:init', () => {
                 detail: customer
             }));
 
-            // Fetch stats
-            this._fetchStats(customer.id);
-        },
-
-        async _fetchStats(customerId) {
-            const statsUrl = (window.REPAIR_CONFIG?.routes?.customerStats
-                ?? '/api/customers/{id}/stats')
-                .replace('{id}', customerId);
-
+            // Fetch customer stats
             this.statsLoading = true;
             try {
-                const res  = await fetch(statsUrl, {
+                const statsUrl = (window.REPAIR_CONFIG?.routes?.customerStats
+                    ?? '/api/customers/{id}/stats').replace('{id}', customer.id);
+                const res = await fetch(statsUrl, {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 });
-                const data = await res.json();
-                this.customerStats = data;
-            } catch (e) {
+                this.customerStats = await res.json();
+            } catch(e) {
                 this.customerStats = null;
             } finally {
                 this.statsLoading = false;
@@ -359,7 +354,6 @@ document.addEventListener('alpine:init', () => {
             this.selectedId       = '';
             this.selectedCustomer = null;
             this.customerStats    = null;
-            this.statsLoading     = false;
             this.searchVal        = '';
             this.isOpen           = false;
             this.results          = [];

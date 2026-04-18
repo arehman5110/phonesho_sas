@@ -10,7 +10,135 @@ use Illuminate\Support\Facades\Auth;
 class ShopController extends Controller
 {
     // -----------------------------------------------
-    // Show shop selection page
+    // GET /shops
+    // -----------------------------------------------
+    public function index()
+    {
+        $shops = Shop::withCount('users')->latest()->paginate(15);
+        return view('shops.index', compact('shops'));
+    }
+
+    // -----------------------------------------------
+    // GET /shops/create
+    // -----------------------------------------------
+    public function create()
+    {
+        return view('shops.create');
+    }
+
+    // -----------------------------------------------
+    // POST /shops
+    // -----------------------------------------------
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name'            => ['required', 'string', 'max:255'],
+            'phone'           => ['nullable', 'string', 'max:30'],
+            'email'           => ['nullable', 'email', 'max:255'],
+            'address'         => ['nullable', 'string', 'max:500'],
+            'city'            => ['nullable', 'string', 'max:100'],
+            'country'         => ['nullable', 'string', 'max:100'],
+            'currency'        => ['nullable', 'string', 'max:10'],
+            'currency_symbol' => ['nullable', 'string', 'max:5'],
+            'timezone'        => ['nullable', 'string', 'max:50'],
+            'is_active'       => ['nullable'],
+        ]);
+
+        $validated['is_active'] = $request->boolean('is_active');
+
+        $shop = Shop::create($validated);
+
+        return redirect()->route('shops.index')
+                         ->with('success', "Shop '{$shop->name}' created successfully!");
+    }
+
+    // -----------------------------------------------
+    // GET /shops/{shop}
+    // -----------------------------------------------
+    public function show(Shop $shop)
+    {
+        $shop->load('users');
+        $allUsers = User::orderBy('name')->get();
+        return view('shops.show', compact('shop', 'allUsers'));
+    }
+
+    // -----------------------------------------------
+    // GET /shops/{shop}/edit
+    // -----------------------------------------------
+    public function edit(Shop $shop)
+    {
+        return view('shops.edit', compact('shop'));
+    }
+
+    // -----------------------------------------------
+    // PUT /shops/{shop}
+    // -----------------------------------------------
+    public function update(Request $request, Shop $shop)
+    {
+        $validated = $request->validate([
+            'name'            => ['required', 'string', 'max:255'],
+            'phone'           => ['nullable', 'string', 'max:30'],
+            'email'           => ['nullable', 'email', 'max:255'],
+            'address'         => ['nullable', 'string', 'max:500'],
+            'city'            => ['nullable', 'string', 'max:100'],
+            'country'         => ['nullable', 'string', 'max:100'],
+            'currency'        => ['nullable', 'string', 'max:10'],
+            'currency_symbol' => ['nullable', 'string', 'max:5'],
+            'timezone'        => ['nullable', 'string', 'max:50'],
+            'is_active'       => ['nullable'],
+        ]);
+
+        $validated['is_active'] = $request->boolean('is_active');
+
+        $shop->update($validated);
+
+        return redirect()->route('shops.show', $shop)
+                         ->with('success', "Shop '{$shop->name}' updated successfully!");
+    }
+
+    // -----------------------------------------------
+    // DELETE /shops/{shop}
+    // -----------------------------------------------
+    public function destroy(Shop $shop)
+    {
+        $name = $shop->name;
+        $shop->delete();
+
+        return redirect()->route('shops.index')
+                         ->with('success', "Shop '{$name}' deleted.");
+    }
+
+    // -----------------------------------------------
+    // POST /shops/{shop}/assign-user
+    // -----------------------------------------------
+    public function assignUser(Request $request, Shop $shop)
+    {
+        $request->validate([
+            'user_id' => ['required', 'exists:users,id'],
+            'role'    => ['nullable', 'string', 'in:staff,shop_admin'],
+        ]);
+
+        $shop->users()->syncWithoutDetaching([
+            $request->user_id => [
+                'role'      => $request->role ?? 'staff',
+                'is_active' => true,
+            ],
+        ]);
+
+        return back()->with('success', 'User assigned to shop.');
+    }
+
+    // -----------------------------------------------
+    // DELETE /shops/{shop}/users/{user}
+    // -----------------------------------------------
+    public function removeUser(Shop $shop, User $user)
+    {
+        $shop->users()->detach($user->id);
+        return back()->with('success', "{$user->name} removed from shop.");
+    }
+
+    // -----------------------------------------------
+    // Shop Selection (login flow)
     // -----------------------------------------------
     public function select()
     {
@@ -19,9 +147,8 @@ class ShopController extends Controller
             ? Shop::where('is_active', true)->get()
             : $user->activeShops()->get();
 
-        // If only one shop — auto select and redirect
         if ($shops->count() === 1) {
-            $this->switchShop($shops->first()->id);
+            Auth::user()->update(['active_shop_id' => $shops->first()->id]);
             return redirect()->route('dashboard');
         }
 
@@ -29,97 +156,22 @@ class ShopController extends Controller
     }
 
     // -----------------------------------------------
-    // Switch active shop
+    // POST /shop/switch
     // -----------------------------------------------
     public function switch(Request $request)
     {
-        $request->validate([
-            'shop_id' => ['required', 'exists:shops,id'],
-        ]);
+        $request->validate(['shop_id' => ['required', 'exists:shops,id']]);
 
         $user   = Auth::user();
         $shopId = $request->shop_id;
 
-        // Verify user has access to this shop
         if (!$user->isSuperAdmin()) {
-            $hasAccess = $user->activeShops()
-                              ->where('shop_id', $shopId)
-                              ->exists();
-
-            if (!$hasAccess) {
-                abort(403, 'You do not have access to this shop.');
-            }
+            $hasAccess = $user->activeShops()->where('shop_id', $shopId)->exists();
+            if (!$hasAccess) abort(403);
         }
 
-        $this->switchShop($shopId);
+        $user->update(['active_shop_id' => $shopId]);
 
-        return redirect()->intended(route('dashboard'))
-                         ->with('success', 'Shop switched successfully!');
-    }
-
-    // -----------------------------------------------
-    // Super Admin — Create shop
-    // -----------------------------------------------
-    public function create()
-    {
-        return view('shops.create');
-    }
-
-    public function store(Request $request)
-    {
-        $request->validate([
-            'name'            => ['required', 'string', 'max:255'],
-            'phone'           => ['nullable', 'string', 'max:20'],
-            'email'           => ['nullable', 'email', 'max:255'],
-            'address'         => ['nullable', 'string'],
-            'city'            => ['nullable', 'string', 'max:100'],
-            'currency'        => ['nullable', 'string', 'max:10'],
-            'currency_symbol' => ['nullable', 'string', 'max:5'],
-        ]);
-
-        $shop = Shop::create($request->all());
-
-        return redirect()->route('shops.index')
-                         ->with('success', "Shop '{$shop->name}' created successfully!");
-    }
-
-    // -----------------------------------------------
-    // Super Admin — List all shops
-    // -----------------------------------------------
-    public function index()
-    {
-        $shops = Shop::withCount('users')
-                     ->latest()
-                     ->paginate(15);
-
-        return view('shops.index', compact('shops'));
-    }
-
-    // -----------------------------------------------
-    // Super Admin — Assign user to shop
-    // -----------------------------------------------
-    public function assignUser(Request $request, Shop $shop)
-    {
-        $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
-            'role'    => ['nullable', 'string'],
-        ]);
-
-        $shop->users()->syncWithoutDetaching([
-            $request->user_id => [
-                'role'      => $request->role,
-                'is_active' => true,
-            ]
-        ]);
-
-        return back()->with('success', 'User assigned to shop successfully!');
-    }
-
-    // -----------------------------------------------
-    // Private helper
-    // -----------------------------------------------
-    private function switchShop(int $shopId): void
-    {
-        Auth::user()->update(['active_shop_id' => $shopId]);
+        return redirect()->intended(route('dashboard'))->with('success', 'Shop switched!');
     }
 }

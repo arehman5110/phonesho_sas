@@ -44,9 +44,23 @@ class VoucherController extends Controller
         }
 
         $vouchers = $query->paginate(20)->withQueryString();
-        $summary  = $this->voucherService->getSummary($shopId);
+        $s        = $this->voucherService->getSummary($shopId);
+        $summary  = array_merge($s, [
+            'used'     => $s['usedUp'] ?? 0,
+            'inactive' => max(0, ($s['total'] ?? 0) - ($s['active'] ?? 0) - ($s['expired'] ?? 0) - ($s['usedUp'] ?? 0)),
+        ]);
 
-        return view('vouchers.index', compact('vouchers', 'summary'));
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'html'    => view('vouchers.partials.list', compact('vouchers', 'summary'))->render(),
+                'summary' => $summary,
+            ]);
+        }
+
+        $customers     = Customer::where('shop_id', $shopId)->orderBy('name')->get(['id','name','phone']);
+        $suggestedCode = $this->voucherService->generateCode($shopId);
+
+        return view('vouchers.index', compact('vouchers', 'summary', 'customers', 'suggestedCode'));
     }
 
     // -----------------------------------------------
@@ -108,11 +122,18 @@ $validated['notes']            = $validated['notes']            ?? null;
                 ->withErrors(['value' => 'Percentage cannot exceed 100%.']);
         }
 
-        Voucher::create($validated);
+        $voucher = Voucher::create($validated);
 
-        return redirect()
-            ->route('vouchers.index')
-            ->with('success', "Voucher {$validated['code']} created!");
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Voucher {$voucher->code} created!",
+                'voucher' => $this->_formatVoucher($voucher->load('assignedCustomer')),
+                'new_code'=> $this->voucherService->generateCode($shopId),
+            ]);
+        }
+
+        return redirect()->route('vouchers.index')->with('success', "Voucher {$voucher->code} created!");
     }
 
     // -----------------------------------------------
@@ -179,10 +200,17 @@ $validated['notes']            = $validated['notes']            ?? null;
         }
 
         $voucher->update($validated);
+        $voucher->refresh()->load('assignedCustomer');
 
-        return redirect()
-            ->route('vouchers.index')
-            ->with('success', "Voucher {$voucher->code} updated!");
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Voucher {$voucher->code} updated!",
+                'voucher' => $this->_formatVoucher($voucher),
+            ]);
+        }
+
+        return redirect()->route('vouchers.index')->with('success', "Voucher {$voucher->code} updated!");
     }
 
     // -----------------------------------------------
@@ -196,11 +224,64 @@ $validated['notes']            = $validated['notes']            ?? null;
         );
 
         $code = $voucher->code;
+        $id   = $voucher->id;
         $voucher->delete();
 
-        return redirect()
-            ->route('vouchers.index')
-            ->with('success', "Voucher {$code} deleted.");
+        if (request()->ajax() || request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Voucher {$code} deleted.",
+                'id'      => $id,
+            ]);
+        }
+
+        return redirect()->route('vouchers.index')->with('success', "Voucher {$code} deleted.");
+    }
+
+    // -----------------------------------------------
+    // GET /vouchers/{voucher}/print  — thermal print HTML
+    // -----------------------------------------------
+    public function printVoucher(Voucher $voucher)
+    {
+        abort_if($voucher->shop_id !== auth()->user()->active_shop_id, 403);
+        $shop = auth()->user()->activeShop;
+        return view('vouchers.print', compact('voucher', 'shop'));
+    }
+
+    // -----------------------------------------------
+    // POST /vouchers/{voucher}/email
+    // -----------------------------------------------
+    public function emailVoucher(\Illuminate\Http\Request $request, Voucher $voucher)
+    {
+        abort_if($voucher->shop_id !== auth()->user()->active_shop_id, 403);
+
+        $request->validate([
+            'email'   => ['required', 'email'],
+            'subject' => ['required', 'string', 'max:255'],
+            'message' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        try {
+            \Illuminate\Support\Facades\Mail::send(
+                [],
+                [],
+                function ($m) use ($request, $voucher) {
+                    $m->to($request->email)
+                      ->subject($request->subject)
+                      ->html(
+                          view('vouchers.email', [
+                              'voucher' => $voucher,
+                              'message' => $request->message,
+                              'shop'    => auth()->user()->activeShop,
+                          ])->render()
+                      );
+                }
+            );
+
+            return response()->json(['success' => true, 'message' => 'Voucher sent to ' . $request->email]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Failed to send: ' . $e->getMessage()], 500);
+        }
     }
 
     // -----------------------------------------------
@@ -228,6 +309,37 @@ $validated['notes']            = $validated['notes']            ?? null;
         );
 
         return response()->json($result);
+    }
+
+    // -----------------------------------------------
+    // Private — format voucher for JSON
+    // -----------------------------------------------
+    private function _formatVoucher(Voucher $v): array
+    {
+        $expired = $v->expiry_date && \Carbon\Carbon::parse($v->expiry_date)->isPast();
+        $used    = $v->usage_limit && $v->used_count >= $v->usage_limit;
+        $active  = $v->is_active && !$expired && !$used;
+        return [
+            'id'               => $v->id,
+            'code'             => $v->code,
+            'type'             => $v->type,
+            'value'            => (float) $v->value,
+            'formatted_value'  => $v->formatted_value,
+            'usage_limit'      => $v->usage_limit,
+            'used_count'       => $v->used_count,
+            'min_order_amount' => (float) $v->min_order_amount,
+            'assigned_to'      => $v->assigned_to,
+            'customer_name'    => $v->assignedCustomer?->name,
+            'expiry_date'      => $v->expiry_date,
+            'is_active'        => (bool) $v->is_active,
+            'notes'            => $v->notes,
+            'is_expired'       => $expired,
+            'is_used'          => $used,
+            'status'           => $active ? 'active' : ($expired ? 'expired' : ($used ? 'used' : 'inactive')),
+            'edit_url'         => route('vouchers.edit', $v->id),
+            'delete_url'       => route('vouchers.destroy', $v->id),
+            'created_at'       => $v->created_at->format('d/m/Y'),
+        ];
     }
 
     // -----------------------------------------------

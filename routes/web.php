@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ShopController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RepairController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\StockController;
 use App\Http\Controllers\VoucherController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BuySellController;
 
 // -----------------------------------------------
 // Public Routes
@@ -99,24 +101,32 @@ Route::put('/customers/{customer}', [CustomerController::class, 'update'])->name
 
 
 
-    // ── Customers (placeholder) ───────────────────
-    Route::get('/customers', function () {
-        return view('dashboard');
-    })->name('customers.index');
+    // ── Customers ─────────────────────────────────
+    Route::get('/customers',              [CustomerController::class, 'index'])->name('customers.index');
+    Route::get('/customers/{customer}',   [CustomerController::class, 'show'])->name('customers.show');
+    Route::delete('/customers/{customer}',[CustomerController::class, 'destroy'])->name('customers.destroy');
 
     // ── Buy & Sell (placeholder) ──────────────────
-    Route::get('/buy-sell', function () {
-        return view('dashboard');
-    })->name('buy-sell.index');
+    // ── Buy & Sell ────────────────────────────────────
+    Route::get('/buy-sell',                        [BuySellController::class, 'index'])->name('buy-sell.index');
+    Route::get('/buy-sell/create',                 [BuySellController::class, 'create'])->name('buy-sell.create');
+    Route::post('/buy-sell/buy',                   [BuySellController::class, 'buy'])->name('buy-sell.buy');
+    Route::get('/buy-sell/{device}/sell',          [BuySellController::class, 'sellPage'])->name('buy-sell.sell-page');
+    Route::post('/buy-sell/{device}/sell',         [BuySellController::class, 'sell'])->name('buy-sell.sell');
+    Route::delete('/buy-sell/{device}',            [BuySellController::class, 'destroy'])->name('buy-sell.destroy');
 });
 
 // -----------------------------------------------
 // Shop Admin & Above
 // -----------------------------------------------
 Route::middleware(['auth', 'role:shop_admin|super_admin'])->group(function () {
-    Route::get('/products', function () {
-        return view('dashboard');
-    })->name('products.index');
+    Route::get('/products',               [ProductController::class, 'index'])->name('products.index');
+    Route::get('/products/report',         [ProductController::class, 'report'])->name('products.report');
+    Route::get('/products/create',         [ProductController::class, 'create'])->name('products.create');
+    Route::post('/products',               [ProductController::class, 'store'])->name('products.store');
+    Route::get('/products/{product}/edit', [ProductController::class, 'edit'])->name('products.edit');
+    Route::put('/products/{product}',      [ProductController::class, 'update'])->name('products.update');
+    Route::delete('/products/{product}',   [ProductController::class, 'destroy'])->name('products.destroy');
 
     Route::get('/vouchers', function () {
         return view('dashboard');
@@ -158,6 +168,8 @@ Route::prefix('vouchers')->name('vouchers.')->group(function () {
     Route::get('/{voucher}/edit',  [VoucherController::class, 'edit'])->name('edit');
     Route::put('/{voucher}',       [VoucherController::class, 'update'])->name('update');
     Route::delete('/{voucher}',    [VoucherController::class, 'destroy'])->name('destroy');
+    Route::get('/{voucher}/print',  [VoucherController::class, 'printVoucher'])->name('print');
+    Route::post('/{voucher}/email', [VoucherController::class, 'emailVoucher'])->name('email');
 });
 
 
@@ -168,6 +180,7 @@ Route::prefix('products')->name('products.')->group(function () {
     Route::get('/create',                  [ProductController::class, 'create'])->name('create');
     Route::post('/',                       [ProductController::class, 'store'])->name('store');
     Route::get('/stock',                   [StockController::class,   'index'])->name('stock');
+    Route::get('/report',                  [ProductController::class, 'report'])->name('report');
     Route::get('/autocomplete',            [ProductController::class, 'autocomplete'])->name('autocomplete');
     Route::get('/{product}/edit',          [ProductController::class, 'edit'])->name('edit');
     Route::put('/{product}',               [ProductController::class, 'update'])->name('update');
@@ -183,12 +196,26 @@ Route::prefix('products')->name('products.')->group(function () {
 // Super Admin Only
 // -----------------------------------------------
 Route::middleware(['auth', 'role:super_admin'])->group(function () {
-    Route::get('/shops', [ShopController::class, 'index'])->name('shops.index');
-    Route::get('/shops/create', [ShopController::class, 'create'])->name('shops.create');
-    Route::post('/shops', [ShopController::class, 'store'])->name('shops.store');
-    Route::post('/shops/{shop}/assign-user', [ShopController::class, 'assignUser'])->name('shops.assign.user');
+    // ── Shops ─────────────────────────────────────────────
+    Route::get('/shops',                          [ShopController::class, 'index'])->name('shops.index');
+    Route::get('/shops/create',                   [ShopController::class, 'create'])->name('shops.create');
+    Route::post('/shops',                         [ShopController::class, 'store'])->name('shops.store');
+    Route::get('/shops/{shop}',                   [ShopController::class, 'show'])->name('shops.show');
+    Route::get('/shops/{shop}/edit',              [ShopController::class, 'edit'])->name('shops.edit');
+    Route::put('/shops/{shop}',                   [ShopController::class, 'update'])->name('shops.update');
+    Route::delete('/shops/{shop}',                [ShopController::class, 'destroy'])->name('shops.destroy');
+    Route::post('/shops/{shop}/assign-user',      [ShopController::class, 'assignUser'])->name('shops.assign.user');
+    Route::delete('/shops/{shop}/users/{user}',   [ShopController::class, 'removeUser'])->name('shops.remove.user');
 
-    Route::get('/users', function () {
+    // ── Users ─────────────────────────────────────────────
+    Route::get('/users',                          [UserController::class, 'index'])->name('users.index');
+    Route::get('/users/create',                   [UserController::class, 'create'])->name('users.create');
+    Route::post('/users',                         [UserController::class, 'store'])->name('users.store');
+    Route::get('/users/{user}/edit',              [UserController::class, 'edit'])->name('users.edit');
+    Route::put('/users/{user}',                   [UserController::class, 'update'])->name('users.update');
+    Route::delete('/users/{user}',                [UserController::class, 'destroy'])->name('users.destroy');
+
+    Route::get('/users_stub', function () {
         return view('dashboard');
     })->name('users.index');
 });

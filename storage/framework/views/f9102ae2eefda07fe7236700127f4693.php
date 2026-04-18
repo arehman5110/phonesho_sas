@@ -63,6 +63,13 @@
         color: #a5b4fc;
         border-color: #3730a3;
     }
+    .stat-card.active {
+        border-color: #6366f1 !important;
+        box-shadow: 0 0 0 2px rgba(99,102,241,0.2);
+    }
+    .dark .stat-card.active {
+        border-color: #818cf8 !important;
+    }
 </style>
 <?php $__env->stopPush(); ?>
 
@@ -84,22 +91,6 @@
         ['label' => 'Sales'],
     ])]); ?>
      <?php $__env->slot('actions', null, []); ?> 
-        <a href="<?php echo e(route('products.index')); ?>"
-           class="flex items-center gap-2 px-4 py-2.5 rounded-xl
-                  text-sm font-semibold
-                  border border-gray-200 dark:border-gray-700
-                  text-gray-600 dark:text-gray-400
-                  hover:bg-gray-50 dark:hover:bg-gray-800
-                  transition-all">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor"
-                 viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4
-                         7m8 4v10M4 7v10l8 4"/>
-            </svg>
-            Products
-        </a>
         <a href="<?php echo e(route('pos.index')); ?>"
            class="flex items-center gap-2 px-4 py-2.5 rounded-xl
                   text-sm font-bold bg-indigo-600 hover:bg-indigo-700
@@ -126,6 +117,83 @@
 <?php $component = $__componentOriginalf8d4ea307ab1e58d4e472a43c8548d8e; ?>
 <?php unset($__componentOriginalf8d4ea307ab1e58d4e472a43c8548d8e); ?>
 <?php endif; ?>
+
+
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+
+    <div onclick="SalesIndex.filterByMethod('')"
+         class="stat-card bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700
+                rounded-2xl p-4 cursor-pointer hover:border-indigo-400 hover:shadow-md
+                transition-all group" data-stat="all">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Total Sales</p>
+        <p id="stat-total" class="text-2xl font-black text-gray-900 dark:text-white">
+            <?php echo e($stats['total'] ?? 0); ?>
+
+        </p>
+        <p class="text-xs text-gray-400 mt-0.5">transactions</p>
+    </div>
+
+    <div onclick="SalesIndex.filterByMethod('')"
+         class="stat-card col-span-1 sm:col-span-1 bg-white dark:bg-gray-900 border border-gray-200
+                dark:border-gray-700 rounded-2xl p-4 cursor-pointer hover:border-indigo-400
+                hover:shadow-md transition-all" data-stat="revenue">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Revenue</p>
+        <p id="stat-revenue" class="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+            £<?php echo e(number_format($stats['revenue'] ?? 0, 2)); ?>
+
+        </p>
+        <p class="text-xs text-gray-400 mt-0.5">total</p>
+    </div>
+
+    <div onclick="SalesIndex.filterByMethod('cash')"
+         class="stat-card bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700
+                rounded-2xl p-4 cursor-pointer hover:border-emerald-400 hover:shadow-md
+                transition-all" data-stat="cash">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">💵 Cash</p>
+        <p id="stat-cash" class="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+            £<?php echo e(number_format($stats['cash'] ?? 0, 2)); ?>
+
+        </p>
+        <p class="text-xs text-gray-400 mt-0.5">payments</p>
+    </div>
+
+    <div onclick="SalesIndex.filterByMethod('card')"
+         class="stat-card bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700
+                rounded-2xl p-4 cursor-pointer hover:border-amber-400 hover:shadow-md
+                transition-all" data-stat="card">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">💳 Card</p>
+        <p id="stat-card" class="text-2xl font-black text-amber-600 dark:text-amber-400">
+            £<?php echo e(number_format($stats['card'] ?? 0, 2)); ?>
+
+        </p>
+        <p class="text-xs text-gray-400 mt-0.5">payments</p>
+    </div>
+
+    <div onclick="SalesIndex.filterByMethod('split')"
+         class="stat-card bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700
+                rounded-2xl p-4 cursor-pointer hover:border-purple-400 hover:shadow-md
+                transition-all" data-stat="split">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">✂️ Split</p>
+        <p id="stat-split" class="text-2xl font-black text-purple-600 dark:text-purple-400">
+            £<?php echo e(number_format($stats['split'] ?? 0, 2)); ?>
+
+        </p>
+        <p class="text-xs text-gray-400 mt-0.5">payments</p>
+    </div>
+
+    <div onclick="SalesIndex.filterByMethod('trade')"
+         class="stat-card bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700
+                rounded-2xl p-4 cursor-pointer hover:border-orange-400 hover:shadow-md
+                transition-all" data-stat="trade">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">🔄 Trade</p>
+        <p id="stat-trade" class="text-2xl font-black text-orange-600 dark:text-orange-400">
+            £<?php echo e(number_format($stats['trade'] ?? 0, 2)); ?>
+
+        </p>
+        <p class="text-xs text-gray-400 mt-0.5">payments</p>
+    </div>
+
+</div>
 
 
 <div class="bg-white dark:bg-gray-900
@@ -219,7 +287,7 @@
             </label>
             <input type="date"
                    id="filter-date-from"
-                   value="<?php echo e(request('date_from')); ?>"
+                   value="<?php echo e(request('date_from', date('Y-m-d'))); ?>"
                    class="px-3 py-2.5
                           border border-gray-200 dark:border-gray-700
                           rounded-xl text-sm outline-none
@@ -351,6 +419,9 @@
     </div>
 
 </div>
+
+
+<iframe id="print-frame" style="display:none;position:absolute;"></iframe>
 
 <?php $__env->startPush('scripts'); ?>
 <script src="<?php echo e(asset('js/sales-index.js')); ?>"></script>

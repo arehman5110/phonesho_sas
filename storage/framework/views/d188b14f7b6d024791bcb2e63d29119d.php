@@ -261,6 +261,77 @@
                 
                 <?php if (isset($component)) { $__componentOriginalb95fb6157a10b6449458ef38a3dd045c = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalb95fb6157a10b6449458ef38a3dd045c = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.form-section','data' => ['title' => 'Devices','color' => 'green']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('form-section'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['title' => 'Devices','color' => 'green']); ?>
+                     <?php $__env->slot('icon', null, []); ?> 
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0
+                             00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                     <?php $__env->endSlot(); ?>
+                     <?php $__env->slot('badgeSlot', null, []); ?> 
+                        <span id="deviceCount"
+                            class="text-xs font-bold px-2 py-0.5
+                             rounded-full bg-green-100
+                             dark:bg-green-900/40
+                             text-green-700 dark:text-green-400">
+                            0 devices
+                        </span>
+                     <?php $__env->endSlot(); ?>
+
+                    
+                    <div id="devicesContainer" class="space-y-4 mb-4">
+                        <div id="devicesEmpty"
+                            class="flex flex-col items-center
+                            justify-center py-10
+                            text-gray-400 dark:text-gray-600">
+                            <svg class="w-12 h-12 mb-3 opacity-40" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2
+                                 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0
+                                 002 2z" />
+                            </svg>
+                            <p class="text-sm font-semibold">No devices added</p>
+                            <p class="text-xs mt-1">Click "Add Device" to start</p>
+                        </div>
+                    </div>
+
+                    
+                    <button type="button" onclick="RepairForm.addDevice()"
+                        class="w-full py-3 rounded-xl text-sm font-bold
+                           border-2 border-dashed
+                           border-green-300 dark:border-green-800
+                           text-green-600 dark:text-green-500
+                           hover:bg-green-50 dark:hover:bg-green-900/20
+                           transition-all flex items-center
+                           justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add Device
+                    </button>
+
+                 <?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalb95fb6157a10b6449458ef38a3dd045c)): ?>
+<?php $attributes = $__attributesOriginalb95fb6157a10b6449458ef38a3dd045c; ?>
+<?php unset($__attributesOriginalb95fb6157a10b6449458ef38a3dd045c); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalb95fb6157a10b6449458ef38a3dd045c)): ?>
+<?php $component = $__componentOriginalb95fb6157a10b6449458ef38a3dd045c; ?>
+<?php unset($__componentOriginalb95fb6157a10b6449458ef38a3dd045c); ?>
+<?php endif; ?>
+
+                
+                <?php if (isset($component)) { $__componentOriginalb95fb6157a10b6449458ef38a3dd045c = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalb95fb6157a10b6449458ef38a3dd045c = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.form-section','data' => ['title' => 'Repair Details','color' => 'purple']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('form-section'); ?>
 <?php if ($component->shouldRender()): ?>
@@ -334,77 +405,6 @@
                         </div>
 
                     </div>
-                 <?php echo $__env->renderComponent(); ?>
-<?php endif; ?>
-<?php if (isset($__attributesOriginalb95fb6157a10b6449458ef38a3dd045c)): ?>
-<?php $attributes = $__attributesOriginalb95fb6157a10b6449458ef38a3dd045c; ?>
-<?php unset($__attributesOriginalb95fb6157a10b6449458ef38a3dd045c); ?>
-<?php endif; ?>
-<?php if (isset($__componentOriginalb95fb6157a10b6449458ef38a3dd045c)): ?>
-<?php $component = $__componentOriginalb95fb6157a10b6449458ef38a3dd045c; ?>
-<?php unset($__componentOriginalb95fb6157a10b6449458ef38a3dd045c); ?>
-<?php endif; ?>
-
-                
-                <?php if (isset($component)) { $__componentOriginalb95fb6157a10b6449458ef38a3dd045c = $component; } ?>
-<?php if (isset($attributes)) { $__attributesOriginalb95fb6157a10b6449458ef38a3dd045c = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.form-section','data' => ['title' => 'Devices','color' => 'green']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
-<?php $component->withName('form-section'); ?>
-<?php if ($component->shouldRender()): ?>
-<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
-<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
-<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
-<?php endif; ?>
-<?php $component->withAttributes(['title' => 'Devices','color' => 'green']); ?>
-                     <?php $__env->slot('icon', null, []); ?> 
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0
-                             00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                     <?php $__env->endSlot(); ?>
-                     <?php $__env->slot('badgeSlot', null, []); ?> 
-                        <span id="deviceCount"
-                            class="text-xs font-bold px-2 py-0.5
-                             rounded-full bg-green-100
-                             dark:bg-green-900/40
-                             text-green-700 dark:text-green-400">
-                            0 devices
-                        </span>
-                     <?php $__env->endSlot(); ?>
-
-                    
-                    <div id="devicesContainer" class="space-y-4 mb-4">
-                        <div id="devicesEmpty"
-                            class="flex flex-col items-center
-                            justify-center py-10
-                            text-gray-400 dark:text-gray-600">
-                            <svg class="w-12 h-12 mb-3 opacity-40" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2
-                                 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0
-                                 002 2z" />
-                            </svg>
-                            <p class="text-sm font-semibold">No devices added</p>
-                            <p class="text-xs mt-1">Click "Add Device" to start</p>
-                        </div>
-                    </div>
-
-                    
-                    <button type="button" onclick="RepairForm.addDevice()"
-                        class="w-full py-3 rounded-xl text-sm font-bold
-                           border-2 border-dashed
-                           border-green-300 dark:border-green-800
-                           text-green-600 dark:text-green-500
-                           hover:bg-green-50 dark:hover:bg-green-900/20
-                           transition-all flex items-center
-                           justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 4v16m8-8H4" />
-                        </svg>
-                        Add Device
-                    </button>
-
                  <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginalb95fb6157a10b6449458ef38a3dd045c)): ?>

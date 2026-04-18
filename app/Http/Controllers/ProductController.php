@@ -97,68 +97,50 @@ class ProductController extends Controller
     {
         $shopId = auth()->user()->active_shop_id;
 
-        $query = Product::where('shop_id', $shopId)
-            ->with(['category', 'brand'])
-            ->where('is_active', true);
+        // ── Base filtered query (search + category + brand) ─────
+        // Used for both stats cards AND the table (stock_filter applied on top)
+        $base = Product::where('shop_id', $shopId)->where('is_active', true);
 
         if ($request->filled('search')) {
             $term = $request->search;
-            $query->where(function ($q) use ($term) {
+            $base->where(function ($q) use ($term) {
                 $q->where('name', 'like', "%{$term}%")
                   ->orWhere('sku',  'like', "%{$term}%");
             });
         }
 
         if ($request->filled('category_id')) {
-            $query->where('category_id', $request->category_id);
+            $base->where('category_id', $request->category_id);
         }
 
         if ($request->filled('brand_id')) {
-            $query->where('brand_id', $request->brand_id);
+            $base->where('brand_id', $request->brand_id);
         }
 
+        // ── Stats from filtered base (no stock_filter so all 4 cards update) ──
+        $stats = [
+            'total'     => (clone $base)->count(),
+            'in_stock'  => (clone $base)->where('stock', '>', 0)->count(),
+            'low_stock' => (clone $base)->whereColumn('stock', '<=', 'low_stock_alert')->where('stock', '>', 0)->count(),
+            'out_stock' => (clone $base)->where('stock', '<=', 0)->count(),
+        ];
+
+        // ── Table query = base + stock_filter ─────────────────
+        $query = (clone $base)->with(['category', 'brand']);
+
+        // ── Stock filter from top cards or dropdown ───────────
         if ($request->filled('stock_filter')) {
             match($request->stock_filter) {
-                'in'  => $query->whereColumn('stock', '>', 'low_stock_alert'),
-                'low' => $query->whereColumn('stock', '<=', 'low_stock_alert')->where('stock', '>', 0),
-                'out' => $query->where('stock', '<=', 0),
-                default => null,
+                'low_stock' => $query->whereColumn('stock', '<=', 'low_stock_alert')->where('stock', '>', 0),
+                'out_stock' => $query->where('stock', '<=', 0),
+                'in_stock'  => $query->where('stock', '>', 0),
+                default     => null,
             };
         }
 
         $products   = $query->orderBy('name')->paginate(20)->withQueryString();
         $categories = Category::where('shop_id', $shopId)->ordered()->get();
         $brands     = Brand::where('shop_id', $shopId)->ordered()->get();
-
-        // Stats for cards (always unfiltered totals)
-        $stats = [
-            'total'    => Product::where('shop_id', $shopId)->where('is_active', true)->count(),
-            'in_stock' => Product::where('shop_id', $shopId)->where('is_active', true)
-                            ->whereColumn('stock', '>', 'low_stock_alert')->count(),
-            'low'      => Product::where('shop_id', $shopId)->where('is_active', true)
-                            ->whereColumn('stock', '<=', 'low_stock_alert')
-                            ->where('stock', '>', 0)->count(),
-            'out'      => Product::where('shop_id', $shopId)->where('is_active', true)
-                            ->where('stock', '<=', 0)->count(),
-        ];
-
-        // ── AJAX — return JSON for live filter ────
-        if ($request->ajax() || $request->wantsJson()) {
-            $rowsHtml       = view('products.partials.rows', compact('products'))->render();
-            $paginationHtml = $products->hasPages()
-                ? $products->links()->render()
-                : '';
-
-            return response()->json([
-                'rows'            => $rowsHtml,
-                'pagination_html' => $paginationHtml,
-                'has_pages'       => $products->hasPages(),
-                'total'           => $products->total(),
-                'from'            => $products->firstItem(),
-                'to'              => $products->lastItem(),
-                'stats'           => $stats,
-            ]);
-        }
 
         return view('products.index', compact(
             'products', 'categories', 'brands', 'stats'
@@ -349,6 +331,46 @@ class ProductController extends Controller
         $query->get(['id', 'name', 'slug'])
     );
 }
+
+    // -----------------------------------------------
+    // GET /products/report?type=all|low_stock|out_of_stock
+    // Printable HTML report — no layout wrapper
+    // -----------------------------------------------
+    public function report(Request $request)
+    {
+        $shopId = auth()->user()->active_shop_id;
+        $type   = $request->input('type', 'all');
+
+        $query = Product::where('shop_id', $shopId)
+            ->with(['category', 'brand'])
+            ->where('is_active', true)
+            ->orderBy('name');
+
+        $title = match($type) {
+            'low_stock'     => 'Low Stock Report',
+            'out_of_stock'  => 'Out of Stock Report',
+            'value'         => 'Stock Value Report',
+            default         => 'All Products Report',
+        };
+
+        if ($type === 'low_stock') {
+            $query->whereColumn('stock', '<=', 'low_stock_alert')->where('stock', '>', 0);
+        } elseif ($type === 'out_of_stock') {
+            $query->where('stock', '<=', 0);
+        }
+
+        $products   = $query->get();
+        $shopName   = auth()->user()->activeShop?->name ?? 'Shop';
+        $currency   = auth()->user()->activeShop?->currency_symbol ?? '£';
+        $totalValue = $products->sum(fn($p) => $p->stock * ($p->cost_price ?? 0));
+        $totalSell  = $products->sum(fn($p) => $p->stock * ($p->sell_price ?? 0));
+        $date       = now()->format('d/m/Y H:i');
+
+        return view('products.report', compact(
+            'products', 'title', 'shopName', 'currency',
+            'totalValue', 'totalSell', 'date', 'type'
+        ));
+    }
 
     // -----------------------------------------------
     // Private — Format product for JSON

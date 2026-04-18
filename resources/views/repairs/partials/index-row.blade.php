@@ -176,6 +176,46 @@
             </svg>
         </a>
 
+        {{-- Edit --}}
+        <a href="{{ route('repairs.edit', $repair) }}"
+           title="Edit"
+           class="w-7 h-7 rounded-lg flex items-center justify-center
+                  bg-amber-50 dark:bg-amber-900/30
+                  text-amber-600 dark:text-amber-400
+                  hover:bg-amber-100 dark:hover:bg-amber-900/50
+                  transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0
+                         002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828
+                         15H9v-2.828l8.586-8.586z"/>
+            </svg>
+        </a>
+
+        {{-- Email --}}
+        <button type="button"
+                title="Send Email"
+                data-email-url="{{ route('repairs.email-receipt', $repair) }}"
+                data-email="{{ $repair->customer?->email ?? '' }}"
+                data-reference="{{ $repair->reference }}"
+                data-customer-name="{{ $repair->customer?->name ?? 'Customer' }}"
+                onclick="_openEmailFromBtn(this)"
+                class="w-7 h-7 rounded-lg flex items-center justify-center
+                       bg-blue-50 dark:bg-blue-900/30
+                       text-blue-600 dark:text-blue-400
+                       hover:bg-blue-100 dark:hover:bg-blue-900/50
+                       transition-colors border-none cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor"
+                 viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0
+                         002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+        </button>
+
         {{-- Receipt --}}
         <a href="{{ route('repairs.receipt', $repair) }}"
            target="_blank"

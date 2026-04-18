@@ -93,6 +93,57 @@
             <x-customer-search input-name="customer_id" />
         </x-form-section>
 
+        {{-- ── Devices Section ─────────────────────── --}}
+        <x-form-section title="Devices" color="green">
+            <x-slot name="icon">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0
+                             00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+            </x-slot>
+            <x-slot name="badgeSlot">
+                <span id="deviceCount"
+                      class="text-xs font-bold px-2 py-0.5 rounded-full
+                             bg-green-100 dark:bg-green-900/40
+                             text-green-700 dark:text-green-400">
+                    {{ $repair->devices->count() }} devices
+                </span>
+            </x-slot>
+
+            <div id="devicesContainer" class="space-y-4 mb-4">
+                <div id="devicesEmpty"
+                     class="flex flex-col items-center justify-center py-10
+                            text-gray-400 dark:text-gray-600"
+                     style="{{ $repair->devices->count() > 0 ? 'display:none;' : '' }}">
+                    <svg class="w-12 h-12 mb-3 opacity-40" fill="none" stroke="currentColor"
+                         viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                              d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0
+                                 00-2 2v14a2 2 0 002 2z"/>
+                    </svg>
+                    <p class="text-sm font-semibold">No devices added</p>
+                    <p class="text-xs mt-1">Click "Add Device" to start</p>
+                </div>
+
+                {{-- Devices injected by JS after RepairForm loads --}}
+            </div>
+
+            <button type="button" onclick="RepairForm.addDevice()"
+                    class="w-full py-3 rounded-xl text-sm font-bold
+                           border-2 border-dashed border-green-300 dark:border-green-800
+                           text-green-600 dark:text-green-500
+                           hover:bg-green-50 dark:hover:bg-green-900/20
+                           transition-all flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Add Device
+            </button>
+
+        </x-form-section>
+
         {{-- ── Repair Details ───────────────────────── --}}
         <x-form-section title="Repair Details" color="purple">
             <x-slot name="icon">
@@ -158,57 +209,6 @@
                 </div>
 
             </div>
-        </x-form-section>
-
-        {{-- ── Devices Section ─────────────────────── --}}
-        <x-form-section title="Devices" color="green">
-            <x-slot name="icon">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0
-                             00-2 2v14a2 2 0 002 2z"/>
-                </svg>
-            </x-slot>
-            <x-slot name="badgeSlot">
-                <span id="deviceCount"
-                      class="text-xs font-bold px-2 py-0.5 rounded-full
-                             bg-green-100 dark:bg-green-900/40
-                             text-green-700 dark:text-green-400">
-                    {{ $repair->devices->count() }} devices
-                </span>
-            </x-slot>
-
-            <div id="devicesContainer" class="space-y-4 mb-4">
-                <div id="devicesEmpty"
-                     class="flex flex-col items-center justify-center py-10
-                            text-gray-400 dark:text-gray-600"
-                     style="{{ $repair->devices->count() > 0 ? 'display:none;' : '' }}">
-                    <svg class="w-12 h-12 mb-3 opacity-40" fill="none" stroke="currentColor"
-                         viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                              d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0
-                                 00-2 2v14a2 2 0 002 2z"/>
-                    </svg>
-                    <p class="text-sm font-semibold">No devices added</p>
-                    <p class="text-xs mt-1">Click "Add Device" to start</p>
-                </div>
-
-                {{-- Devices injected by JS after RepairForm loads --}}
-            </div>
-
-            <button type="button" onclick="RepairForm.addDevice()"
-                    class="w-full py-3 rounded-xl text-sm font-bold
-                           border-2 border-dashed border-green-300 dark:border-green-800
-                           text-green-600 dark:text-green-500
-                           hover:bg-green-50 dark:hover:bg-green-900/20
-                           transition-all flex items-center justify-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          stroke-width="2" d="M12 4v16m8-8H4"/>
-                </svg>
-                Add Device
-            </button>
-
         </x-form-section>
 
     </div>

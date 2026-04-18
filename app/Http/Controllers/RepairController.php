@@ -116,7 +116,7 @@ class RepairController extends Controller
                     'repair_type'     => $d->repair_type,
                     'warranty_status' => $d->warranty_status,
                     'warranty_label'  => $d->warranty_label,
-                    'warranty_expiry' => $d->warranty_expiry_date?->format('d/m/Y'),
+                    'warranty_expiry' => $d->warranty_expiry_date ? \Carbon\Carbon::parse((string) $d->warranty_expiry_date)->format('d/m/Y') : null,
                     'price'           => $d->price,
                     'notes'           => $d->notes,
                     'status'          => $d->status ? [
@@ -153,14 +153,17 @@ class RepairController extends Controller
                 ],
             ),
             'delivery_type' => $repair->delivery_type_label,
-            'book_in_date' => $repair->book_in_date?->format('d/m/Y'),
-            'completion_date' => $repair->completion_date?->format('d/m/Y'),
+            'book_in_date' => $repair->book_in_date ? \Carbon\Carbon::parse((string) $repair->book_in_date)->format('d/m/Y') : null,
+            'completion_date' => $repair->completion_date ? \Carbon\Carbon::parse((string) $repair->completion_date)->format('d/m/Y') : null,
             'assigned_to' => $repair->assignedTo?->name,
             'created_by' => $repair->createdBy?->name,
             'notes' => $repair->notes,
             'created_at' => $repair->created_at->format('d/m/Y H:i'),
-            'show_url' => route('repairs.show', $repair->id),
-            'receipt_url' => route('repairs.receipt', $repair->id),
+            'show_url'       => route('repairs.show',         $repair->id),
+            'edit_url'       => route('repairs.edit',         $repair->id),
+            'receipt_url'    => route('repairs.receipt',      $repair->id),
+            'email_url'      => route('repairs.email-receipt',$repair->id),
+            'customer_email' => $repair->customer?->email,
         ];
     }
 
@@ -555,37 +558,35 @@ class RepairController extends Controller
     // -----------------------------------------------
     // POST /repairs/{repair}/email
     // -----------------------------------------------
-    public function emailReceipt(Repair $repair)
+    public function emailReceipt(Request $request, Repair $repair)
     {
         abort_if($repair->shop_id !== auth()->user()->active_shop_id, 403);
 
-        if (!$repair->customer || !$repair->customer->email) {
-            return response()->json(
-                [
-                    'success' => false,
-                    'message' => 'No customer email address found.',
-                ],
-                422,
-            );
-        }
+        $validated = $request->validate([
+            'email'   => ['required', 'email'],
+            'subject' => ['required', 'string', 'max:255'],
+            'message' => ['nullable', 'string', 'max:2000'],
+        ]);
 
         try {
             $repair->loadMissing(['customer', 'status', 'devices.deviceType', 'devices.parts.product', 'payments', 'createdBy', 'shop']);
 
-            \Illuminate\Support\Facades\Mail::to($repair->customer->email)->send(new \App\Mail\RepairReceiptMail($repair));
+            \Illuminate\Support\Facades\Mail::to($validated['email'])
+                ->send(new \App\Mail\RepairReceiptMail(
+                    $repair,
+                    $validated['subject'],
+                    $validated['message'] ?? null
+                ));
 
             return response()->json([
                 'success' => true,
-                'message' => "Receipt sent to {$repair->customer->email}",
+                'message' => "Receipt sent to {$validated['email']}",
             ]);
         } catch (\Exception $e) {
-            return response()->json(
-                [
-                    'success' => false,
-                    'message' => 'Failed to send email: ' . $e->getMessage(),
-                ],
-                500,
-            );
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send email: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
@@ -668,7 +669,7 @@ class RepairController extends Controller
                     'issue' => $d->issue,
                     'repair_type' => $d->repair_type,
                     'warranty_status' => $d->warranty_status,
-                    'warranty_expiry_date' => $d->warranty_expiry_date?->format('d/m/Y'),
+                    'warranty_expiry_date' => $d->warranty_expiry_date ? \Carbon\Carbon::parse((string) $d->warranty_expiry_date)->format('d/m/Y') : null,
                     'warranty_days' => $d->warranty_days,
                     'is_under_warranty' => $d->isUnderWarranty(),
                     'days_remaining' => $d->warrantyDaysRemaining(),

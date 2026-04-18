@@ -443,6 +443,145 @@
     </div>
 </div>
 
+
+
+<div id="idx-email-modal"
+     style="display:none;position:fixed;inset:0;z-index:9999;
+            background:rgba(15,23,42,0.75);align-items:center;
+            justify-content:center;padding:16px;"
+     onclick="if(event.target===this) closeIdxEmailModal()">
+    <div id="idx-email-modal-box"
+         style="transform:scale(0.95);opacity:0;transition:all 0.2s;"
+         class="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl">
+
+        
+        <div class="flex items-center justify-between px-6 py-4
+                    border-b border-gray-100 dark:border-gray-800">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40
+                            flex items-center justify-center">
+                    <svg class="w-4 h-4 text-blue-600 dark:text-blue-400"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0
+                                 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-gray-900 dark:text-white">
+                    Send Receipt by Email
+                </h3>
+            </div>
+            <button type="button" onclick="closeIdxEmailModal()"
+                    class="w-8 h-8 rounded-full flex items-center justify-center
+                           bg-gray-100 dark:bg-gray-800 text-gray-500
+                           hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-red-500
+                           transition-all border-none cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="px-6 py-5 space-y-4">
+
+            
+            <div>
+                <label class="block text-xs font-bold text-gray-500 dark:text-gray-400
+                               uppercase tracking-wider mb-1.5">
+                    To <span class="text-red-500">*</span>
+                </label>
+                <input type="email" id="idx-email-to" placeholder="customer@example.com"
+                       oninput="clearIdxEmailError()"
+                       class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-gray-700
+                              rounded-xl text-sm outline-none bg-gray-50 dark:bg-gray-800
+                              text-gray-900 dark:text-white placeholder-gray-400
+                              focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10
+                              focus:bg-white dark:focus:bg-gray-900 transition-all">
+            </div>
+
+            
+            <div>
+                <label class="block text-xs font-bold text-gray-500 dark:text-gray-400
+                               uppercase tracking-wider mb-1.5">
+                    Subject <span class="text-red-500">*</span>
+                </label>
+                <input type="text" id="idx-email-subject" placeholder="Email subject..."
+                       oninput="clearIdxEmailError()"
+                       class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-gray-700
+                              rounded-xl text-sm outline-none bg-gray-50 dark:bg-gray-800
+                              text-gray-900 dark:text-white placeholder-gray-400
+                              focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10
+                              focus:bg-white dark:focus:bg-gray-900 transition-all">
+            </div>
+
+            
+            <div>
+                <label class="block text-xs font-bold text-gray-500 dark:text-gray-400
+                               uppercase tracking-wider mb-1.5">
+                    Message
+                    <span class="text-gray-400 font-normal normal-case">(optional)</span>
+                </label>
+                <textarea id="idx-email-message" rows="4"
+                          placeholder="Add a personal message..."
+                          class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-gray-700
+                                 rounded-xl text-sm outline-none bg-gray-50 dark:bg-gray-800
+                                 text-gray-900 dark:text-white placeholder-gray-400
+                                 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10
+                                 focus:bg-white dark:focus:bg-gray-900 transition-all resize-none">
+                </textarea>
+            </div>
+
+            
+            <div id="idx-email-error" style="display:none;"
+                 class="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold
+                        bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800
+                        text-red-600 dark:text-red-400">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor"
+                     viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span id="idx-email-error-text"></span>
+            </div>
+
+            
+            <div id="idx-email-success" style="display:none;"
+                 class="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold
+                        bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800
+                        text-green-700 dark:text-green-400">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor"
+                     viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span id="idx-email-success-text"></span>
+            </div>
+        </div>
+
+        
+        <div class="px-6 pb-6 flex gap-3">
+            <button type="button" onclick="closeIdxEmailModal()"
+                    class="flex-1 py-3 rounded-xl text-sm font-semibold
+                           border border-gray-200 dark:border-gray-700
+                           text-gray-600 dark:text-gray-400
+                           hover:bg-gray-50 dark:hover:bg-gray-800 transition-all">
+                Cancel
+            </button>
+            <button type="button" id="idx-email-send-btn" onclick="sendIdxEmailReceipt()"
+                    class="flex-1 py-3 rounded-xl text-sm font-bold
+                           bg-blue-600 hover:bg-blue-700 active:scale-95
+                           text-white transition-all flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+                Send Email
+            </button>
+        </div>
+    </div>
+</div>
+
 <?php $__env->startPush('scripts'); ?>
 <script src="<?php echo e(asset('js/repair-index.js')); ?>"></script>
 <script>

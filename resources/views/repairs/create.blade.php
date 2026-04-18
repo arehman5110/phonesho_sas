@@ -40,14 +40,6 @@
             textarea.repair-input {
                 resize: none;
             }
-
-            @keyframes shake {
-                0%,100% { transform: translateX(0); }
-                20%      { transform: translateX(-6px); }
-                40%      { transform: translateX(6px); }
-                60%      { transform: translateX(-4px); }
-                80%      { transform: translateX(4px); }
-            }
         </style>
     @endpush
 
@@ -199,110 +191,6 @@
                     </div>
                 </div>
 
-                {{-- ── Repair Details ──────────────────────── --}}
-                <x-form-section title="Repair Details" color="purple">
-                    <x-slot name="icon">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2
-                             2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0
-                             002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2
-                             2 0 012 2" />
-                        </svg>
-                    </x-slot>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2
-                        lg:grid-cols-3 gap-4">
-
-                        {{-- Status --}}
-                        <div>
-                            <label
-                                class="block text-xs font-semibold
-                                   text-gray-500 dark:text-gray-400
-                                   uppercase tracking-wider mb-1.5">
-                                Status
-                            </label>
-                            <select name="status_id" class="repair-input">
-                                @foreach ($statuses as $status)
-                                    <option value="{{ $status->id }}" {{ $status->is_default ? 'selected' : '' }}>
-                                        {{ $status->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        {{-- Book-in Date --}}
-                        <div>
-                            <label
-                                class="block text-xs font-semibold
-                                   text-gray-500 dark:text-gray-400
-                                   uppercase tracking-wider mb-1.5">
-                                Book-in Date
-                            </label>
-                            <input type="date" name="book_in_date" value="{{ date('Y-m-d') }}"
-                                class="repair-input">
-                        </div>
-
-                        {{-- Completion Date --}}
-                        <div>
-                            <label
-                                class="block text-xs font-semibold
-                                   text-gray-500 dark:text-gray-400
-                                   uppercase tracking-wider mb-1.5">
-                                Est. Completion
-                            </label>
-                            <input type="date" name="completion_date" class="repair-input">
-                        </div>
-
-                        {{-- Delivery Type --}}
-                        <div>
-                            <label
-                                class="block text-xs font-semibold
-                                   text-gray-500 dark:text-gray-400
-                                   uppercase tracking-wider mb-1.5">
-                                Delivery Type
-                            </label>
-                            <select name="delivery_type" class="repair-input">
-                                <option value="collection">🏪 Collection</option>
-                                <option value="delivery">🚚 Delivery</option>
-                            </select>
-                        </div>
-
-                        {{-- Assigned To --}}
-                        <div>
-                            <label
-                                class="block text-xs font-semibold
-                                   text-gray-500 dark:text-gray-400
-                                   uppercase tracking-wider mb-1.5">
-                                Assigned To
-                            </label>
-                            <select name="assigned_to" class="repair-input">
-                                <option value="">Unassigned</option>
-                                @foreach ($staff as $user)
-                                    <option value="{{ $user->id }}">
-                                        {{ $user->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        {{-- Discount (hidden — controlled by JS) --}}
-                        <input type="hidden" name="discount" id="repair-discount-hidden" value="0">
-
-                        {{-- Notes --}}
-                        <div class="sm:col-span-2 lg:col-span-3">
-                            <label
-                                class="block text-xs font-semibold
-                                   text-gray-500 dark:text-gray-400
-                                   uppercase tracking-wider mb-1.5">
-                                Internal Notes
-                            </label>
-                            <textarea name="notes" rows="3" placeholder="Internal notes..." class="repair-input">
-                    </textarea>
-                        </div>
-
-                    </div>
-                </x-form-section>
-
                 {{-- ── Devices Section ─────────────────────── --}}
                 <x-form-section title="Devices" color="green">
                     <x-slot name="icon">
@@ -354,6 +242,75 @@
                         Add Device
                     </button>
 
+                </x-form-section>
+
+                {{-- ── Repair Details ──────────────────────── --}}
+                <x-form-section title="Repair Details" color="purple">
+                    <x-slot name="icon">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2
+                             2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0
+                             002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2
+                             2 0 012 2" />
+                        </svg>
+                    </x-slot>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2
+                        lg:grid-cols-3 gap-4">
+
+                        {{-- Book-in Date --}}
+                        <div>
+                            <label
+                                class="block text-xs font-semibold
+                                   text-gray-500 dark:text-gray-400
+                                   uppercase tracking-wider mb-1.5">
+                                Book-in Date
+                            </label>
+                            <input type="date" name="book_in_date" value="{{ date('Y-m-d') }}"
+                                class="repair-input">
+                        </div>
+
+                        {{-- Completion Date --}}
+                        <div>
+                            <label
+                                class="block text-xs font-semibold
+                                   text-gray-500 dark:text-gray-400
+                                   uppercase tracking-wider mb-1.5">
+                                Est. Completion
+                            </label>
+                            <input type="date" name="completion_date" class="repair-input">
+                        </div>
+
+                        {{-- Delivery Type --}}
+                        <div>
+                            <label
+                                class="block text-xs font-semibold
+                                   text-gray-500 dark:text-gray-400
+                                   uppercase tracking-wider mb-1.5">
+                                Delivery Type
+                            </label>
+                            <select name="delivery_type" class="repair-input">
+                                <option value="collection">🏪 Collection</option>
+                                <option value="delivery">🚚 Delivery</option>
+                            </select>
+                        </div>
+
+                        {{-- Discount (hidden — controlled by JS) --}}
+                        <input type="hidden" name="discount" id="repair-discount-hidden" value="0">
+
+                        {{-- Notes --}}
+                        <div class="sm:col-span-2 lg:col-span-3">
+                            <label
+                                class="block text-xs font-semibold
+                                   text-gray-500 dark:text-gray-400
+                                   uppercase tracking-wider mb-1.5">
+                                Internal Notes
+                            </label>
+                            <textarea name="notes" rows="3" placeholder="Internal notes..." class="repair-input">
+                    </textarea>
+                        </div>
+
+                    </div>
                 </x-form-section>
 
             </div>

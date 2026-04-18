@@ -21,70 +21,91 @@ class SaleController extends Controller
 
     // -----------------------------------------------
     // GET /sales
+    // Sales history list
     // -----------------------------------------------
-    public function index(Request $request): mixed
-    {
-        $shopId = auth()->user()->active_shop_id;
+  public function index(Request $request): mixed
+{
+    $shopId = auth()->user()->active_shop_id;
 
-        if (!$shopId) {
-            return redirect()->route('shop.select')
-                ->with('error', 'Please select a shop first.');
-        }
-
-        $query = Sale::forShop($shopId)
-            ->with(['customer', 'items', 'payments', 'createdBy']);
-
-        if ($request->filled('search')) {
-            $term = $request->search;
-            $query->where(function ($q) use ($term) {
-                $q->where('reference', 'like', "%{$term}%")
-                  ->orWhereHas('customer', fn($c) =>
-                      $c->where('name',  'like', "%{$term}%")
-                        ->orWhere('phone', 'like', "%{$term}%")
-                  );
-            });
-        }
-
-        if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->payment_status);
-        }
-
-        if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->payment_method);
-        }
-
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
-        }
-
-        $query->latest();
-
-        if ($request->ajax() || $request->wantsJson()) {
-            $sales = $query->paginate(20)->withQueryString();
-            return response()->json([
-                'sales'      => $sales->map(fn($s) => $this->_formatSale($s)),
-                'pagination' => [
-                    'total'        => $sales->total(),
-                    'current_page' => $sales->currentPage(),
-                    'last_page'    => $sales->lastPage(),
-                    'from'         => $sales->firstItem(),
-                    'to'           => $sales->lastItem(),
-                ],
-            ]);
-        }
-
-        $sales = $query->paginate(20)->withQueryString();
-        return view('sales.index', compact('sales'));
+    if (!$shopId) {
+        return redirect()->route('shop.select')
+            ->with('error', 'Please select a shop first.');
     }
+
+    // Default date_from to today ONLY on first fresh page load (no query params at all)
+    // AJAX calls always include 'page' param, so they never get the default
+    if (!$request->ajax() && !$request->wantsJson() && !$request->has('date_from')) {
+        $request->merge(['date_from' => now()->toDateString()]);
+    }
+
+    $query = Sale::forShop($shopId)
+        ->with(['customer', 'items', 'payments', 'createdBy']);
+
+    // ── Search ────────────────────────────────
+    if ($request->filled('search')) {
+        $term = $request->search;
+        $query->where(function ($q) use ($term) {
+            $q->where('reference', 'like', "%{$term}%")
+              ->orWhereHas('customer', fn($c) =>
+                  $c->where('name',  'like', "%{$term}%")
+                    ->orWhere('phone', 'like', "%{$term}%")
+              );
+        });
+    }
+
+    // ── Payment status ────────────────────────
+    if ($request->filled('payment_status')) {
+        $query->where('payment_status', $request->payment_status);
+    }
+
+    // ── Payment method ────────────────────────
+    if ($request->filled('payment_method')) {
+        $query->where('payment_method', $request->payment_method);
+    }
+
+    // ── Date range ────────────────────────────
+    if ($request->filled('date_from')) {
+        $query->whereDate('created_at', '>=', $request->date_from);
+    }
+    if ($request->filled('date_to')) {
+        $query->whereDate('created_at', '<=', $request->date_to);
+    }
+
+    $query->latest();
+
+    // ── AJAX ─────────────────────────────────
+    if ($request->ajax() || $request->wantsJson()) {
+        $sales = $query->paginate(20)->withQueryString();
+
+        return response()->json([
+            'sales'      => $sales->map(fn($s) => $this->_formatSale($s)),
+            'pagination' => [
+                'total'        => $sales->total(),
+                'current_page' => $sales->currentPage(),
+                'last_page'    => $sales->lastPage(),
+                'from'         => $sales->firstItem(),
+                'to'           => $sales->lastItem(),
+            ],
+            'stats'      => $this->_calcStats(clone $query),
+        ]);
+    }
+
+    $sales = $query->paginate(20)->withQueryString();
+
+    // Stats for initial page load (today by default)
+    $stats = $this->_calcStats(clone $query);
+
+    return view('sales.index', compact('sales', 'stats'));
+}
 
     // -----------------------------------------------
     // GET /pos
+    // POS terminal
     // -----------------------------------------------
     public function pos()
     {
+        $shopId = auth()->user()->active_shop_id;
+
         return view('pos.index');
     }
 
@@ -105,12 +126,11 @@ class SaleController extends Controller
             $summary = $this->paymentService->getSaleSummary($sale);
 
             return response()->json([
-                'success'        => true,
-                'message'        => "Sale {$sale->reference} completed!",
-                'sale_id'        => $sale->id,
-                'reference'      => $sale->reference,
-                'summary'        => $summary,
-                'customer_email' => $sale->customer?->email,
+                'success'   => true,
+                'message'   => "Sale {$sale->reference} completed!",
+                'sale_id'   => $sale->id,
+                'reference' => $sale->reference,
+                'summary'   => $summary,
             ]);
 
         } catch (\Exception $e) {
@@ -126,9 +146,18 @@ class SaleController extends Controller
     // -----------------------------------------------
     public function receipt(Sale $sale): mixed
     {
-        abort_if($sale->shop_id !== auth()->user()->active_shop_id, 403);
+        abort_if(
+            $sale->shop_id !== auth()->user()->active_shop_id,
+            403
+        );
 
-        $sale->load(['items.product', 'customer', 'payments', 'createdBy', 'shop']);
+        $sale->load([
+            'items.product',
+            'customer',
+            'payments',
+            'createdBy',
+            'shop',
+        ]);
 
         $summary  = $this->paymentService->getSaleSummary($sale);
         $settings = ShopSetting::getAllForShop($sale->shop_id);
@@ -139,29 +168,35 @@ class SaleController extends Controller
     // -----------------------------------------------
     // POST /sales/{sale}/email
     // -----------------------------------------------
-    public function emailReceipt(Request $request, Sale $sale): JsonResponse
+    public function emailReceipt(Sale $sale): JsonResponse
     {
-        abort_if($sale->shop_id !== auth()->user()->active_shop_id, 403);
+        abort_if(
+            $sale->shop_id !== auth()->user()->active_shop_id,
+            403
+        );
 
-        $validated = $request->validate([
-            'email'   => ['required', 'email'],
-            'subject' => ['required', 'string', 'max:255'],
-            'message' => ['nullable', 'string', 'max:2000'],
-        ]);
+        if (!$sale->customer || !$sale->customer->email) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No customer email address found.',
+            ], 422);
+        }
 
         try {
-            $sale->loadMissing(['items.product', 'customer', 'payments', 'createdBy', 'shop']);
+            $sale->loadMissing([
+                'items.product',
+                'customer',
+                'payments',
+                'createdBy',
+                'shop',
+            ]);
 
-            Mail::to($validated['email'])
-                ->send(new ReceiptMail(
-                    $sale,
-                    $validated['subject'],
-                    $validated['message'] ?? null,
-                ));
+            Mail::to($sale->customer->email)
+                ->send(new ReceiptMail($sale));
 
             return response()->json([
                 'success' => true,
-                'message' => "Receipt sent to {$validated['email']}",
+                'message' => "Receipt sent to {$sale->customer->email}",
             ]);
 
         } catch (\Exception $e) {
@@ -177,13 +212,36 @@ class SaleController extends Controller
     // -----------------------------------------------
     public function summary(Sale $sale): JsonResponse
     {
-        abort_if($sale->shop_id !== auth()->user()->active_shop_id, 403);
-        return response()->json($this->paymentService->getSaleSummary($sale));
+        abort_if(
+            $sale->shop_id !== auth()->user()->active_shop_id,
+            403
+        );
+
+        return response()->json(
+            $this->paymentService->getSaleSummary($sale)
+        );
     }
 
     // -----------------------------------------------
     // Format sale for JSON
     // -----------------------------------------------
+    // -----------------------------------------------
+    // Calculate stats for current filtered query
+    // -----------------------------------------------
+    private function _calcStats($query): array
+    {
+        $all = $query->get(['id', 'final_amount', 'payment_method']);
+
+        $total      = $all->count();
+        $revenue    = (float) $all->sum('final_amount');
+        $cash       = (float) $all->where('payment_method', 'cash')->sum('final_amount');
+        $card       = (float) $all->where('payment_method', 'card')->sum('final_amount');
+        $split      = (float) $all->where('payment_method', 'split')->sum('final_amount');
+        $trade      = (float) $all->where('payment_method', 'trade')->sum('final_amount');
+
+        return compact('total', 'revenue', 'cash', 'card', 'split', 'trade');
+    }
+
     private function _formatSale(Sale $sale): array
     {
         $totalPaid   = $sale->payments->sum('amount');

@@ -3,55 +3,89 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\Voucher;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class CustomerController extends Controller
 {
     // -----------------------------------------------
-    // GET /customers
+    // GET /customers  (web page)
     // -----------------------------------------------
     public function index(Request $request)
     {
-        $shopId  = auth()->user()->active_shop_id;
-        $search  = trim((string) $request->input('search', ''));
+        $shopId = auth()->user()->active_shop_id;
 
-        $customers = Customer::forShop($shopId)
-            ->withCount(['repairs', 'sales'])
-            ->withSum('repairs', 'final_price')
-            ->withSum('sales', 'final_amount')
-            ->when($search !== '', fn($query) => $query->search($search))
-            ->orderBy('name')
-            ->paginate(20)
-            ->withQueryString();
+        $base = Customer::forShop($shopId);
 
-        return view('customers.index', compact('customers', 'search'));
+        // ── Stats (always unfiltered by balance, but respect search) ──
+        $statsBase = (clone $base);
+        if ($request->filled('search')) {
+            $statsBase->search($request->search);
+        }
+        $stats = [
+            'total'        => (clone $statsBase)->count(),
+            'with_balance' => (clone $statsBase)->where('balance', '>', 0)->count(),
+            'no_balance'   => (clone $statsBase)->where(function($q) { $q->where('balance', '<=', 0)->orWhereNull('balance'); })->count(),
+        ];
+
+        // ── Filtered query ─────────────────────────────────────
+        $query = (clone $base)
+            ->withCount(['repairs', 'transactions'])
+            ->orderBy('name');
+
+        if ($request->filled('search')) {
+            $query->search($request->search);
+        }
+
+        if ($request->filled('balance_filter')) {
+            match($request->balance_filter) {
+                'with_balance' => $query->where('balance', '>', 0),
+                'no_balance'   => $query->where(function($q) { $q->where('balance', '<=', 0)->orWhereNull('balance'); }),
+                default        => null,
+            };
+        }
+
+        $customers = $query->paginate(20)->withQueryString();
+
+        return view('customers.index', compact('customers', 'stats'));
     }
 
     // -----------------------------------------------
-    // GET /customers/{customer}
+    // GET /customers/{customer}  (web page)
     // -----------------------------------------------
     public function show(Customer $customer)
     {
         abort_if($customer->shop_id !== auth()->user()->active_shop_id, 403);
 
-        $customer->load([
-            'repairs' => fn($query) => $query
-                ->latest()
-                ->limit(20)
-                ->with(['status:id,name,color']),
-            'sales' => fn($query) => $query->latest()->limit(20),
-        ]);
+        $customer->load(['repairs.devices.status', 'repairs.payments']);
 
-        $summary = [
-            'total_repairs'       => $customer->repairs()->count(),
-            'total_repair_value'  => (float) $customer->repairs()->sum('final_price'),
-            'total_sales'         => $customer->sales()->count(),
-            'total_sales_value'   => (float) $customer->sales()->sum('final_amount'),
-            'total_spent'         => (float) ($customer->repairs()->sum('final_price') + $customer->sales()->sum('final_amount')),
-        ];
+        $vouchers = Voucher::where('shop_id', $customer->shop_id)
+            ->where('assigned_to', $customer->id)
+            ->latest()
+            ->get();
 
-        return view('customers.show', compact('customer', 'summary'));
+        $totalSpent   = (float) $customer->transactions()->where('type', 'debit')->sum('amount');
+        $totalRepairs = $customer->repairs()->count();
+        $totalSales   = 0; // extend if sales model has customer_id
+        $balance      = (float) ($customer->balance ?? 0);
+
+        return view('customers.show', compact(
+            'customer', 'vouchers',
+            'totalSpent', 'totalRepairs', 'totalSales', 'balance'
+        ));
+    }
+
+    // -----------------------------------------------
+    // DELETE /customers/{customer}  (web)
+    // -----------------------------------------------
+    public function destroy(Customer $customer)
+    {
+        abort_if($customer->shop_id !== auth()->user()->active_shop_id, 403);
+        $name = $customer->name;
+        $customer->delete();
+        return redirect()->route('customers.index')
+                         ->with('success', "Customer '{$name}' deleted.");
     }
 
     // -----------------------------------------------

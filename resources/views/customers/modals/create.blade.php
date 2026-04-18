@@ -1,9 +1,228 @@
+<script>
+document.addEventListener('alpine:init', () => {
+// ── Add Customer Modal ─────────────────────────────────────────
+Alpine.data('AddCustomerModal', () => ({
+        isOpen      : false,
+        isSaving    : false,
+        form: {
+            name    : '',
+            phone   : '',
+            email   : '',
+            address : '',
+            notes   : '',
+        },
+        errors       : {},
+        errorMessage : '',
+        csrf: document.querySelector('meta[name="csrf-token"]')?.content,
+
+        open() {
+            this.reset();
+            this.isOpen = true;
+            this.$nextTick(() => this.$refs.nameInput?.focus());
+        },
+
+        close() {
+            this.isOpen = false;
+            this.reset();
+        },
+
+        reset() {
+            this.form         = { name:'', phone:'', email:'', address:'', notes:'' };
+            this.errors       = {};
+            this.errorMessage = '';
+            this.isSaving     = false;
+        },
+
+        async save() {
+            this.errors       = {};
+            this.errorMessage = '';
+
+            if (!this.form.name.trim()) {
+                this.errors.name = 'Name is required.';
+                this.$refs.nameInput?.focus();
+                return;
+            }
+
+            this.isSaving = true;
+
+            try {
+                const url = window.REPAIR_CONFIG?.routes?.customerStore
+                    ?? '/api/customers';
+
+                const res  = await fetch(url, {
+                    method  : 'POST',
+                    headers : {
+                        'Content-Type'     : 'application/json',
+                        'X-CSRF-TOKEN'     : this.csrf,
+                        'X-Requested-With' : 'XMLHttpRequest',
+                        'Accept'           : 'application/json',
+                    },
+                    body: JSON.stringify(this.form),
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    document.dispatchEvent(new CustomEvent('customer-created', {
+                        detail: data.customer
+                    }));
+                    this._toast(`✓ ${data.message}`, 'success');
+                    this.close();
+                } else {
+                    if (data.errors) {
+                        this.errors = Object.fromEntries(
+                            Object.entries(data.errors).map(([k, v]) => [k, v[0]])
+                        );
+                        const firstKey = Object.keys(this.errors)[0];
+                        if (firstKey && this.$refs[firstKey + 'Input']) {
+                            this.$refs[firstKey + 'Input'].focus();
+                        }
+                    } else {
+                        this.errorMessage = data.message || 'Failed to save customer.';
+                    }
+                }
+            } catch (e) {
+                this.errorMessage = 'Network error. Please try again.';
+            } finally {
+                this.isSaving = false;
+            }
+        },
+
+        _toast(message, type = 'success') {
+            const colors = { success:'#10b981', error:'#ef4444', warning:'#f59e0b' };
+            const el     = document.createElement('div');
+            el.style.cssText = `
+                position:fixed;bottom:24px;right:24px;z-index:9999;
+                padding:10px 18px;border-radius:12px;color:#fff;
+                font-size:0.85rem;font-weight:700;max-width:300px;
+                box-shadow:0 8px 24px rgba(0,0,0,0.15);
+                background:${colors[type] || colors.success};
+                transform:translateY(10px);opacity:0;
+                transition:all 0.25s ease;`;
+            el.textContent = message;
+            document.body.appendChild(el);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                el.style.transform = 'translateY(0)';
+                el.style.opacity   = '1';
+            }));
+            setTimeout(() => {
+                el.style.opacity   = '0';
+                el.style.transform = 'translateY(10px)';
+                setTimeout(() => el.remove(), 250);
+            }, 3500);
+        },
+}));
+
+
+// ── Edit Customer Modal ────────────────────────────────────────
+Alpine.data('EditCustomerModal', () => ({
+        isOpen      : false,
+        isSaving    : false,
+        customerId  : null,
+        form: {
+            name    : '',
+            phone   : '',
+            email   : '',
+            address : '',
+            notes   : '',
+        },
+        errorMessage : '',
+        csrf: document.querySelector('meta[name="csrf-token"]')?.content,
+
+        open(customer) {
+            this.customerId   = customer.id;
+            this.form.name    = customer.name    ?? '';
+            this.form.phone   = customer.phone   ?? '';
+            this.form.email   = customer.email   ?? '';
+            this.form.address = customer.address ?? '';
+            this.form.notes   = customer.notes   ?? '';
+            this.errorMessage = '';
+            this.isOpen       = true;
+            this.$nextTick(() => this.$refs.nameInput?.focus());
+        },
+
+        close() {
+            this.isOpen       = false;
+            this.errorMessage = '';
+        },
+
+        async save() {
+            if (!this.form.name.trim()) {
+                this.errorMessage = 'Name is required.';
+                this.$refs.nameInput?.focus();
+                return;
+            }
+
+            this.isSaving     = true;
+            this.errorMessage = '';
+
+            try {
+                const baseUrl = window.REPAIR_CONFIG?.routes?.customerUpdate
+                    ?? '/api/customers/{id}';
+                const url = baseUrl.replace('{id}', this.customerId);
+
+                const res  = await fetch(url, {
+                    method  : 'PUT',
+                    headers : {
+                        'Content-Type'     : 'application/json',
+                        'X-CSRF-TOKEN'     : this.csrf,
+                        'X-Requested-With' : 'XMLHttpRequest',
+                        'Accept'           : 'application/json',
+                    },
+                    body: JSON.stringify(this.form),
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    document.dispatchEvent(new CustomEvent('customer-updated', {
+                        detail: data.customer
+                    }));
+                    this._toast(`✓ ${data.message}`, 'success');
+                    this.close();
+                } else {
+                    this.errorMessage = data.message || 'Failed to update customer.';
+                }
+            } catch (e) {
+                this.errorMessage = 'Network error. Please try again.';
+            } finally {
+                this.isSaving = false;
+            }
+        },
+
+        _toast(message, type = 'success') {
+            const colors = { success:'#10b981', error:'#ef4444', warning:'#f59e0b' };
+            const el     = document.createElement('div');
+            el.style.cssText = `
+                position:fixed;bottom:24px;right:24px;z-index:9999;
+                padding:10px 18px;border-radius:12px;color:#fff;
+                font-size:0.85rem;font-weight:700;max-width:300px;
+                box-shadow:0 8px 24px rgba(0,0,0,0.15);
+                background:${colors[type] || colors.success};
+                transform:translateY(10px);opacity:0;
+                transition:all 0.25s ease;`;
+            el.textContent = message;
+            document.body.appendChild(el);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                el.style.transform = 'translateY(0)';
+                el.style.opacity   = '1';
+            }));
+            setTimeout(() => {
+                el.style.opacity   = '0';
+                el.style.transform = 'translateY(10px)';
+                setTimeout(() => el.remove(), 250);
+            }, 3500);
+        },
+}));
+}); // end alpine:init
+</script>
+
 {{-- ============================================================ --}}
 {{-- Add Customer Modal                                          --}}
 {{-- Triggered by Alpine event: open-add-customer-modal          --}}
 {{-- Emits: customer-created                                     --}}
 {{-- ============================================================ --}}
-<div x-data="AddCustomerModal()"
+<div x-data="AddCustomerModal"
      @open-add-customer-modal.window="open()"
      @keydown.escape.window="close()"
      x-show="isOpen"
@@ -236,7 +455,7 @@
 {{-- Triggered by Alpine event: open-edit-customer-modal         --}}
 {{-- Emits: customer-updated                                     --}}
 {{-- ============================================================ --}}
-<div x-data="EditCustomerModal()"
+<div x-data="EditCustomerModal"
      @open-edit-customer-modal.window="open($event.detail)"
      @keydown.escape.window="close()"
      x-show="isOpen"
@@ -433,225 +652,3 @@
 
     </div>
 </div>
-
-@pushOnce('scripts')
-<script>
-// ── Add Customer Modal ─────────────────────────────────────────
-function AddCustomerModal() {
-    return {
-        isOpen      : false,
-        isSaving    : false,
-        form: {
-            name    : '',
-            phone   : '',
-            email   : '',
-            address : '',
-            notes   : '',
-        },
-        errors       : {},
-        errorMessage : '',
-        csrf: document.querySelector('meta[name="csrf-token"]')?.content,
-
-        open() {
-            this.reset();
-            this.isOpen = true;
-            this.$nextTick(() => this.$refs.nameInput?.focus());
-        },
-
-        close() {
-            this.isOpen = false;
-            this.reset();
-        },
-
-        reset() {
-            this.form         = { name:'', phone:'', email:'', address:'', notes:'' };
-            this.errors       = {};
-            this.errorMessage = '';
-            this.isSaving     = false;
-        },
-
-        async save() {
-            this.errors       = {};
-            this.errorMessage = '';
-
-            if (!this.form.name.trim()) {
-                this.errors.name = 'Name is required.';
-                this.$refs.nameInput?.focus();
-                return;
-            }
-
-            this.isSaving = true;
-
-            try {
-                const url = window.REPAIR_CONFIG?.routes?.customerStore
-                    ?? '/api/customers';
-
-                const res  = await fetch(url, {
-                    method  : 'POST',
-                    headers : {
-                        'Content-Type'     : 'application/json',
-                        'X-CSRF-TOKEN'     : this.csrf,
-                        'X-Requested-With' : 'XMLHttpRequest',
-                        'Accept'           : 'application/json',
-                    },
-                    body: JSON.stringify(this.form),
-                });
-
-                const data = await res.json();
-
-                if (data.success) {
-                    document.dispatchEvent(new CustomEvent('customer-created', {
-                        detail: data.customer
-                    }));
-                    this._toast(`✓ ${data.message}`, 'success');
-                    this.close();
-                } else {
-                    if (data.errors) {
-                        this.errors = Object.fromEntries(
-                            Object.entries(data.errors).map(([k, v]) => [k, v[0]])
-                        );
-                        const firstKey = Object.keys(this.errors)[0];
-                        if (firstKey && this.$refs[firstKey + 'Input']) {
-                            this.$refs[firstKey + 'Input'].focus();
-                        }
-                    } else {
-                        this.errorMessage = data.message || 'Failed to save customer.';
-                    }
-                }
-            } catch (e) {
-                this.errorMessage = 'Network error. Please try again.';
-            } finally {
-                this.isSaving = false;
-            }
-        },
-
-        _toast(message, type = 'success') {
-            const colors = { success:'#10b981', error:'#ef4444', warning:'#f59e0b' };
-            const el     = document.createElement('div');
-            el.style.cssText = `
-                position:fixed;bottom:24px;right:24px;z-index:9999;
-                padding:10px 18px;border-radius:12px;color:#fff;
-                font-size:0.85rem;font-weight:700;max-width:300px;
-                box-shadow:0 8px 24px rgba(0,0,0,0.15);
-                background:${colors[type] || colors.success};
-                transform:translateY(10px);opacity:0;
-                transition:all 0.25s ease;`;
-            el.textContent = message;
-            document.body.appendChild(el);
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                el.style.transform = 'translateY(0)';
-                el.style.opacity   = '1';
-            }));
-            setTimeout(() => {
-                el.style.opacity   = '0';
-                el.style.transform = 'translateY(10px)';
-                setTimeout(() => el.remove(), 250);
-            }, 3500);
-        },
-    };
-}
-
-// ── Edit Customer Modal ────────────────────────────────────────
-function EditCustomerModal() {
-    return {
-        isOpen      : false,
-        isSaving    : false,
-        customerId  : null,
-        form: {
-            name    : '',
-            phone   : '',
-            email   : '',
-            address : '',
-            notes   : '',
-        },
-        errorMessage : '',
-        csrf: document.querySelector('meta[name="csrf-token"]')?.content,
-
-        open(customer) {
-            this.customerId   = customer.id;
-            this.form.name    = customer.name    ?? '';
-            this.form.phone   = customer.phone   ?? '';
-            this.form.email   = customer.email   ?? '';
-            this.form.address = customer.address ?? '';
-            this.form.notes   = customer.notes   ?? '';
-            this.errorMessage = '';
-            this.isOpen       = true;
-            this.$nextTick(() => this.$refs.nameInput?.focus());
-        },
-
-        close() {
-            this.isOpen       = false;
-            this.errorMessage = '';
-        },
-
-        async save() {
-            if (!this.form.name.trim()) {
-                this.errorMessage = 'Name is required.';
-                this.$refs.nameInput?.focus();
-                return;
-            }
-
-            this.isSaving     = true;
-            this.errorMessage = '';
-
-            try {
-                const baseUrl = window.REPAIR_CONFIG?.routes?.customerUpdate
-                    ?? '/api/customers/{id}';
-                const url = baseUrl.replace('{id}', this.customerId);
-
-                const res  = await fetch(url, {
-                    method  : 'PUT',
-                    headers : {
-                        'Content-Type'     : 'application/json',
-                        'X-CSRF-TOKEN'     : this.csrf,
-                        'X-Requested-With' : 'XMLHttpRequest',
-                        'Accept'           : 'application/json',
-                    },
-                    body: JSON.stringify(this.form),
-                });
-
-                const data = await res.json();
-
-                if (data.success) {
-                    document.dispatchEvent(new CustomEvent('customer-updated', {
-                        detail: data.customer
-                    }));
-                    this._toast(`✓ ${data.message}`, 'success');
-                    this.close();
-                } else {
-                    this.errorMessage = data.message || 'Failed to update customer.';
-                }
-            } catch (e) {
-                this.errorMessage = 'Network error. Please try again.';
-            } finally {
-                this.isSaving = false;
-            }
-        },
-
-        _toast(message, type = 'success') {
-            const colors = { success:'#10b981', error:'#ef4444', warning:'#f59e0b' };
-            const el     = document.createElement('div');
-            el.style.cssText = `
-                position:fixed;bottom:24px;right:24px;z-index:9999;
-                padding:10px 18px;border-radius:12px;color:#fff;
-                font-size:0.85rem;font-weight:700;max-width:300px;
-                box-shadow:0 8px 24px rgba(0,0,0,0.15);
-                background:${colors[type] || colors.success};
-                transform:translateY(10px);opacity:0;
-                transition:all 0.25s ease;`;
-            el.textContent = message;
-            document.body.appendChild(el);
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                el.style.transform = 'translateY(0)';
-                el.style.opacity   = '1';
-            }));
-            setTimeout(() => {
-                el.style.opacity   = '0';
-                el.style.transform = 'translateY(10px)';
-                setTimeout(() => el.remove(), 250);
-            }, 3500);
-        },
-    };
-}
-</script>
-@endPushOnce

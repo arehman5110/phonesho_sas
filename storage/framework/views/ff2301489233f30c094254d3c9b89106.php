@@ -26,6 +26,14 @@
     .dark .badge-red    { background:#7f1d1d;color:#fca5a5; }
     .dark .badge-purple { background:#4a1d96;color:#d8b4fe; }
     .dark .badge-gray   { background:#1e293b;color:#94a3b8; }
+    @keyframes emailShake {
+        0%,100% { transform:translateX(0); }
+        20%     { transform:translateX(-6px); }
+        40%     { transform:translateX(6px); }
+        60%     { transform:translateX(-4px); }
+        80%     { transform:translateX(4px); }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 <?php $__env->stopPush(); ?>
 
@@ -49,6 +57,17 @@
         ['label' => $repair->reference],
     ])]); ?>
      <?php $__env->slot('actions', null, []); ?> 
+        <button type="button" onclick="openEmailModal()"
+                class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold
+                       border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400
+                       hover:bg-gray-50 dark:hover:bg-gray-800 transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0
+                         00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            Email Receipt
+        </button>
         <a href="<?php echo e(route('repairs.receipt', $repair)); ?>" target="_blank"
            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold
                   border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400
@@ -906,6 +925,154 @@
     </div>
 </div>
 
+
+
+<div id="email-receipt-modal"
+     style="display:none;position:fixed;inset:0;z-index:9999;
+            background:rgba(15,23,42,0.75);align-items:center;
+            justify-content:center;padding:16px;"
+     onclick="if(event.target===this) closeEmailModal()">
+
+    <div id="email-receipt-modal-box"
+         style="transform:scale(0.95);opacity:0;transition:all 0.2s;"
+         class="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl">
+
+        
+        <div class="flex items-center justify-between px-6 py-4
+                    border-b border-gray-100 dark:border-gray-800">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40
+                            flex items-center justify-center">
+                    <svg class="w-4 h-4 text-blue-600 dark:text-blue-400"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0
+                                 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-gray-900 dark:text-white">
+                    Send Receipt by Email
+                </h3>
+            </div>
+            <button type="button" onclick="closeEmailModal()"
+                    class="w-8 h-8 rounded-full flex items-center justify-center
+                           bg-gray-100 dark:bg-gray-800 text-gray-500
+                           hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-red-500
+                           transition-all border-none cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="px-6 py-5 space-y-4">
+
+            
+            <div>
+                <label class="block text-xs font-bold text-gray-500 dark:text-gray-400
+                               uppercase tracking-wider mb-1.5">
+                    To <span class="text-red-500">*</span>
+                </label>
+                <input type="email" id="email-to"
+                       value="<?php echo e($repair->customer?->email ?? ''); ?>"
+                       placeholder="customer@example.com"
+                       oninput="clearEmailError()"
+                       class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-gray-700
+                              rounded-xl text-sm outline-none bg-gray-50 dark:bg-gray-800
+                              text-gray-900 dark:text-white placeholder-gray-400
+                              focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10
+                              focus:bg-white dark:focus:bg-gray-900 transition-all"
+                       id="email-to">
+            </div>
+
+            
+            <div>
+                <label class="block text-xs font-bold text-gray-500 dark:text-gray-400
+                               uppercase tracking-wider mb-1.5">
+                    Subject <span class="text-red-500">*</span>
+                </label>
+                <input type="text" id="email-subject"
+                       value="Repair Receipt — <?php echo e($repair->reference); ?>"
+                       placeholder="Email subject..."
+                       oninput="clearEmailError()"
+                       class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-gray-700
+                              rounded-xl text-sm outline-none bg-gray-50 dark:bg-gray-800
+                              text-gray-900 dark:text-white placeholder-gray-400
+                              focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10
+                              focus:bg-white dark:focus:bg-gray-900 transition-all">
+            </div>
+
+            
+            <div>
+                <label class="block text-xs font-bold text-gray-500 dark:text-gray-400
+                               uppercase tracking-wider mb-1.5">
+                    Message <span class="text-gray-400 font-normal normal-case">(optional)</span>
+                </label>
+                <textarea id="email-message" rows="4"
+                          placeholder="Add a personal message..."
+                          class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-gray-700
+                                 rounded-xl text-sm outline-none bg-gray-50 dark:bg-gray-800
+                                 text-gray-900 dark:text-white placeholder-gray-400
+                                 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10
+                                 focus:bg-white dark:focus:bg-gray-900 transition-all resize-none"><?php echo e("Dear " . ($repair->customer?->name ?? 'Customer') . ",
+
+Please find your repair receipt attached for " . $repair->reference . ".
+
+Thank you for choosing us!"); ?></textarea>
+            </div>
+
+            
+            <div id="email-error" style="display:none;"
+                 class="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold
+                        bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800
+                        text-red-600 dark:text-red-400">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor"
+                     viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span id="email-error-text"></span>
+            </div>
+
+            
+            <div id="email-success" style="display:none;"
+                 class="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold
+                        bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800
+                        text-green-700 dark:text-green-400">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor"
+                     viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span id="email-success-text"></span>
+            </div>
+
+        </div>
+
+        
+        <div class="px-6 pb-6 flex gap-3">
+            <button type="button" onclick="closeEmailModal()"
+                    class="flex-1 py-3 rounded-xl text-sm font-semibold
+                           border border-gray-200 dark:border-gray-700
+                           text-gray-600 dark:text-gray-400
+                           hover:bg-gray-50 dark:hover:bg-gray-800 transition-all">
+                Cancel
+            </button>
+            <button type="button" id="email-send-btn" onclick="sendEmailReceipt()"
+                    class="flex-1 py-3 rounded-xl text-sm font-bold
+                           bg-blue-600 hover:bg-blue-700 active:scale-95
+                           text-white transition-all flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+                Send Email
+            </button>
+        </div>
+    </div>
+</div>
+
 <?php $__env->startPush('scripts'); ?>
 <script>
 const _CSRF           = '<?php echo e(csrf_token()); ?>';
@@ -1245,6 +1412,134 @@ function _toast(msg, bg = '#10b981') {
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closePaymentModal();
 });
+
+// ── Email Receipt Modal ───────────────────────────────────────
+const _EMAIL_URL = '<?php echo e(route("repairs.email-receipt", $repair)); ?>';
+
+function openEmailModal() {
+    // Reset state
+    document.getElementById('email-error').style.display   = 'none';
+    document.getElementById('email-success').style.display = 'none';
+    const btn = document.getElementById('email-send-btn');
+    btn.disabled  = false;
+    btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Send Email`;
+
+    const modal = document.getElementById('email-receipt-modal');
+    const box   = document.getElementById('email-receipt-modal-box');
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        box.style.transform = 'scale(1)';
+        box.style.opacity   = '1';
+    }));
+    setTimeout(() => document.getElementById('email-to')?.focus(), 200);
+}
+
+function closeEmailModal() {
+    const modal = document.getElementById('email-receipt-modal');
+    const box   = document.getElementById('email-receipt-modal-box');
+    box.style.transform = 'scale(0.95)';
+    box.style.opacity   = '0';
+    setTimeout(() => { modal.style.display = 'none'; }, 180);
+}
+
+function clearEmailError() {
+    document.getElementById('email-error').style.display = 'none';
+}
+
+function _showEmailError(msg) {
+    const errDiv  = document.getElementById('email-error');
+    const errText = document.getElementById('email-error-text');
+    if (errText) errText.textContent = msg;
+    errDiv.style.display = 'flex';
+    document.getElementById('email-success').style.display = 'none';
+
+    // Shake
+    errDiv.style.animation = 'none';
+    requestAnimationFrame(() => { errDiv.style.animation = 'emailShake 0.3s ease'; });
+}
+
+async function sendEmailReceipt() {
+    const toEl      = document.getElementById('email-to');
+    const subjectEl = document.getElementById('email-subject');
+    const msgEl     = document.getElementById('email-message');
+    const btn       = document.getElementById('email-send-btn');
+
+    const to      = toEl.value.trim();
+    const subject = subjectEl.value.trim();
+    const message = msgEl.value.trim();
+
+    // ── Validation ────────────────────────────────────────
+    if (!to) {
+        _showEmailError('Please enter an email address.');
+        toEl.focus(); return;
+    }
+    // Basic email format check
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+        _showEmailError('Please enter a valid email address.');
+        toEl.focus(); return;
+    }
+    if (!subject) {
+        _showEmailError('Please enter a subject line.');
+        subjectEl.focus(); return;
+    }
+    if (subject.length > 255) {
+        _showEmailError('Subject is too long (max 255 characters).');
+        subjectEl.focus(); return;
+    }
+
+    // ── Send ──────────────────────────────────────────────
+    btn.disabled  = true;
+    btn.innerHTML = `<svg width="15" height="15" fill="none" viewBox="0 0 24 24"
+        style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10"
+        stroke="white" stroke-width="4" opacity="0.25"/><path fill="white"
+        d="M4 12a8 8 0 018-8v8H4z"/></svg> Sending...`;
+
+    try {
+        const res  = await fetch(_EMAIL_URL, {
+            method : 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': _CSRF,
+                'Accept'      : 'application/json',
+            },
+            body: JSON.stringify({ email: to, subject, message: message || null }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            document.getElementById('email-success').style.display = 'flex';
+            document.getElementById('email-success-text').textContent = data.message;
+            document.getElementById('email-error').style.display = 'none';
+            btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M5 13l4 4L19 7"/></svg> Sent!`;
+            btn.className = btn.className.replace('bg-blue-600 hover:bg-blue-700', 'bg-emerald-600');
+            setTimeout(() => closeEmailModal(), 2000);
+        } else {
+            _showEmailError(data.message || 'Failed to send. Please try again.');
+            btn.disabled  = false;
+            btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Send Email`;
+        }
+    } catch(e) {
+        _showEmailError('Network error. Please try again.');
+        btn.disabled  = false;
+        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Send Email`;
+    }
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        closeEmailModal();
+        closePaymentModal();
+    }
+});
+
 </script>
 <?php $__env->stopPush(); ?>
 

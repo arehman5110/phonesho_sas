@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Repair;
+use App\Models\Sale;
 
 class Customer extends Model
 {
@@ -39,18 +41,6 @@ class Customer extends Model
     public function transactions()
     {
         return $this->hasMany(CustomerTransaction::class);
-    }
-
-    // Customer has many repairs
-    public function repairs()
-    {
-        return $this->hasMany(Repair::class);
-    }
-
-    // Customer has many sales
-    public function sales()
-    {
-        return $this->hasMany(Sale::class);
     }
 
     // -----------------------------------------------
@@ -103,10 +93,21 @@ class Customer extends Model
         if ($this->balance < 0) return 'credit';
         return 'clear';
     }
-
     // User created many customer transactions
     public function customerTransactions()
     {
         return $this->hasMany(CustomerTransaction::class);
+    }
+
+    // Customer has many repairs
+    public function repairs()
+    {
+        return $this->hasMany(Repair::class);
+    }
+
+    // Customer has many sales
+    public function sales()
+    {
+        return $this->hasMany(Sale::class);
     }
 }

@@ -23,6 +23,8 @@ class RepairReceiptMail extends Mailable
     // -----------------------------------------------
     public function __construct(
         public Repair $repair,
+        public ?string $customSubject = null,
+        public ?string $customMessage = null,
     ) {
         $this->repair->loadMissing([
             'customer',
@@ -44,7 +46,8 @@ class RepairReceiptMail extends Mailable
     // -----------------------------------------------
     public function envelope(): Envelope
     {
-        $subject = "Repair Receipt — {$this->repair->reference}";
+        $subject = $this->customSubject
+            ?? "Repair Receipt — {$this->repair->reference}";
 
         return new Envelope(subject: $subject);
     }
@@ -57,10 +60,11 @@ class RepairReceiptMail extends Mailable
         return new Content(
             markdown: 'emails.repair-receipt',
             with    : [
-                'repair'      => $this->repair,
-                'settings'    => $this->settings,
-                'totalPaid'   => $this->totalPaid,
-                'outstanding' => $this->outstanding,
+                'repair'        => $this->repair,
+                'settings'      => $this->settings,
+                'totalPaid'     => $this->totalPaid,
+                'outstanding'   => $this->outstanding,
+                'customMessage' => $this->customMessage,
             ],
         );
     }

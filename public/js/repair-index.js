@@ -339,23 +339,6 @@ function _buildMainRow(repair) {
             }
         </td>
 
-        <td class="px-4 py-4 hidden xl:table-cell">
-            ${repair.assigned_to
-                ? `<div class="flex items-center gap-2">
-                       <div class="w-6 h-6 rounded-full bg-indigo-500
-                                   flex items-center justify-center
-                                   text-white text-xs font-bold">
-                           ${_esc(repair.assigned_to.charAt(0).toUpperCase())}
-                       </div>
-                       <span class="text-xs font-medium text-gray-700
-                                    dark:text-gray-300 truncate max-w-24">
-                           ${_esc(repair.assigned_to)}
-                       </span>
-                   </div>`
-                : `<span class="text-xs italic text-gray-400">Unassigned</span>`
-            }
-        </td>
-
         <td class="px-4 py-4" onclick="event.stopPropagation()">
     <div class="flex items-center gap-1.5 opacity-0
                 group-hover:opacity-100 transition-opacity">
@@ -376,6 +359,45 @@ function _buildMainRow(repair) {
                          7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
             </svg>
         </a>
+
+        <a href="${repair.edit_url}"
+           title="Edit"
+           class="w-7 h-7 rounded-lg flex items-center justify-center
+                  bg-amber-50 dark:bg-amber-900/30
+                  text-amber-600 dark:text-amber-400
+                  hover:bg-amber-100 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none"
+                 stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2
+                         2 0 002-2v-5m-1.414-9.414a2 2 0 112.828
+                         2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+        </a>
+
+        <button type="button"
+                title="Send Email"
+                data-repair-id="${repair.id}"
+                data-email-url="${_esc(repair.email_url)}"
+                data-email="${_esc(repair.customer_email || '')}"
+                data-reference="${_esc(repair.reference)}"
+                data-customer-name="${_esc(repair.customer?.name || 'Customer')}"
+                onclick="_openEmailFromBtn(this)"
+                class="w-7 h-7 rounded-lg flex items-center justify-center
+                       bg-blue-50 dark:bg-blue-900/30
+                       text-blue-600 dark:text-blue-400
+                       hover:bg-blue-100 transition-colors
+                       border-none cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none"
+                 stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14
+                         a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10
+                         a2 2 0 002 2z"/>
+            </svg>
+        </button>
 
         <a href="${repair.receipt_url}"
            target="_blank"
@@ -1208,6 +1230,123 @@ function _formatDate(dateStr) {
     clearDateFrom,
     clearDateTo,
     goToPage,
+    openEmailModal,
 };
 
 })();
+
+// ─────────────────────────────────────────────────────────────
+// EMAIL RECEIPT MODAL (global, outside IIFE)
+// ─────────────────────────────────────────────────────────────
+let _emailModalRepair = null;
+
+function _openEmailFromBtn(btn) {
+    openEmailModal({
+        email_url      : btn.dataset.emailUrl,
+        customer_email : btn.dataset.email,
+        reference      : btn.dataset.reference,
+        customer       : { name: btn.dataset.customerName },
+    });
+}
+
+function openEmailModal(repair) {
+    _emailModalRepair = repair;
+
+    // Fill fields
+    document.getElementById('idx-email-to').value      = repair.customer_email || '';
+    document.getElementById('idx-email-subject').value = `Repair Receipt \u2014 ${repair.reference}`;
+    document.getElementById('idx-email-message').value =
+        `Dear ${repair.customer?.name || 'Customer'},\n\nPlease find your repair receipt for ${repair.reference}.\n\nThank you for choosing us!`;
+
+    // Reset state
+    document.getElementById('idx-email-error').style.display   = 'none';
+    document.getElementById('idx-email-success').style.display = 'none';
+    const btn = document.getElementById('idx-email-send-btn');
+    btn.disabled = false;
+    btn.textContent = 'Send Email';
+
+    // Show modal
+    const modal = document.getElementById('idx-email-modal');
+    const box   = document.getElementById('idx-email-modal-box');
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        box.style.transform = 'scale(1)';
+        box.style.opacity   = '1';
+    }));
+    setTimeout(() => document.getElementById('idx-email-to')?.focus(), 200);
+}
+
+function closeIdxEmailModal() {
+    const modal = document.getElementById('idx-email-modal');
+    const box   = document.getElementById('idx-email-modal-box');
+    box.style.transform = 'scale(0.95)';
+    box.style.opacity   = '0';
+    setTimeout(() => { modal.style.display = 'none'; }, 180);
+}
+
+function clearIdxEmailError() {
+    document.getElementById('idx-email-error').style.display = 'none';
+}
+
+function showIdxEmailError(msg) {
+    const el   = document.getElementById('idx-email-error');
+    const text = document.getElementById('idx-email-error-text');
+    if (text) text.textContent = msg;
+    el.style.display = 'flex';
+    el.style.animation = 'none';
+    requestAnimationFrame(() => { el.style.animation = 'idxEmailShake 0.3s ease'; });
+}
+
+async function sendIdxEmailReceipt() {
+    if (!_emailModalRepair) return;
+
+    const to      = document.getElementById('idx-email-to').value.trim();
+    const subject = document.getElementById('idx-email-subject').value.trim();
+    const message = document.getElementById('idx-email-message').value.trim();
+    const btn     = document.getElementById('idx-email-send-btn');
+
+    // Validation
+    if (!to) { showIdxEmailError('Please enter an email address.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { showIdxEmailError('Please enter a valid email address.'); return; }
+    if (!subject) { showIdxEmailError('Please enter a subject line.'); return; }
+    if (subject.length > 255) { showIdxEmailError('Subject is too long (max 255 characters).'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+               || document.querySelector('input[name="_token"]')?.value
+               || '';
+
+    try {
+        const res  = await fetch(_emailModalRepair.email_url, {
+            method : 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'Accept'      : 'application/json',
+            },
+            body: JSON.stringify({ email: to, subject, message: message || null }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('idx-email-success').style.display = 'flex';
+            document.getElementById('idx-email-success-text').textContent = data.message;
+            document.getElementById('idx-email-error').style.display = 'none';
+            btn.textContent = '\u2713 Sent!';
+            setTimeout(() => closeIdxEmailModal(), 2000);
+        } else {
+            showIdxEmailError(data.message || 'Failed to send. Please try again.');
+            btn.disabled = false;
+            btn.textContent = 'Send Email';
+        }
+    } catch(e) {
+        showIdxEmailError('Network error. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Send Email';
+    }
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeIdxEmailModal();
+});

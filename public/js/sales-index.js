@@ -65,11 +65,10 @@ const SalesIndex = (() => {
             _fetchSales();
         });
 
-    // Render tags for any pre-filled values (from URL params)
-    // but do NOT auto-fetch on load
+    // Render filter tags (date already set by server)
     _renderFilterTags();
-
-    
+    // Fetch to get fresh stats matching current filters
+    _fetchSales();
 }
     // ─────────────────────────────────────────────────────────────
     // FETCH SALES (AJAX)
@@ -125,8 +124,9 @@ const SalesIndex = (() => {
 
         const dateFrom = document.getElementById('filter-date-from')?.value;
         const dateTo   = document.getElementById('filter-date-to')?.value;
-        if (dateFrom) params.set('date_from', dateFrom);
-        if (dateTo)   params.set('date_to',   dateTo);
+        // Always send date_from param (even empty) so controller knows it was explicitly set/cleared
+        params.set('date_from', dateFrom || '');
+        if (dateTo) params.set('date_to', dateTo);
 
         params.set('page', state.currentPage);
 
@@ -187,6 +187,7 @@ const SalesIndex = (() => {
     );
 
     _renderPagination(data.pagination);
+    if (data.stats) _updateStats(data.stats);
 }
 
     // ─────────────────────────────────────────────────────────────
@@ -304,23 +305,25 @@ const SalesIndex = (() => {
             <td class="px-4 py-4" onclick="event.stopPropagation()">
                 <div class="flex items-center gap-1.5 opacity-0
                             group-hover:opacity-100 transition-opacity">
-                    <a href="${sale.receipt_url}"
-                       target="_blank"
-                       class="w-7 h-7 rounded-lg flex items-center
-                              justify-center bg-emerald-50
-                              dark:bg-emerald-900/30 text-emerald-600
-                              dark:text-emerald-400 hover:bg-emerald-100
-                              transition-colors">
+                    <button type="button"
+                            onclick="SalesIndex.openReceiptModal('${sale.receipt_url}')"
+                            title="Print Receipt"
+                            class="w-7 h-7 rounded-lg flex items-center
+                                   justify-center bg-emerald-50
+                                   dark:bg-emerald-900/30 text-emerald-600
+                                   dark:text-emerald-400 hover:bg-emerald-100
+                                   transition-colors border-none cursor-pointer">
                         <svg class="w-3.5 h-3.5" fill="none"
                              stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round"
                                   stroke-linejoin="round" stroke-width="2"
-                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2
-                                     2 0 012-2h5.586a1 1 0 01.707.293l5.414
-                                     5.414a1 1 0 01.293.707V19a2 2 0
-                                     01-2 2z"/>
+                                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2
+                                     2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0
+                                     002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2
+                                     2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0
+                                     00-2 2v4h10z"/>
                         </svg>
-                    </a>
+                    </button>
                 </div>
             </td>`;
 
@@ -415,16 +418,15 @@ const SalesIndex = (() => {
                             ${methodIcon} ${_capitalize(sale.payment_method || '')}
                         </span>
                         <div style="margin-left:auto;">
-                            <a href="${sale.receipt_url}"
-                               target="_blank"
-                               onclick="event.stopPropagation()"
+                            <button type="button"
+                               onclick="event.stopPropagation();SalesIndex.openReceiptModal('${sale.receipt_url}')"
                                style="display:inline-flex;align-items:center;
                                       gap:4px;padding:6px 14px;
                                       border-radius:8px;font-size:0.75rem;
                                       font-weight:700;background:#6366f1;
-                                      color:#fff;text-decoration:none;">
+                                      color:#fff;border:none;cursor:pointer;">
                                 🖨 Receipt
-                            </a>
+                            </button>
                         </div>
                     </div>
 
@@ -851,6 +853,65 @@ const SalesIndex = (() => {
         clearDateFrom,
         clearDateTo,
         clearAll,
+        filterByMethod   : (m) => filterByMethod(m),
+        openReceiptModal : (u) => openReceiptModal(u),
+        closeReceiptModal: ()  => closeReceiptModal(),
+        printReceipt     : ()  => printReceipt(),
     };
 
 })();
+
+// ─────────────────────────────────────────────────────────────
+// STATS UPDATE
+// ─────────────────────────────────────────────────────────────
+function _updateStats(stats) {
+    const fmt = (n) => '£' + parseFloat(n || 0).toFixed(2);
+    const el  = (id) => document.getElementById(id);
+
+    if (el('stat-total'))   el('stat-total').textContent   = stats.total   ?? 0;
+    if (el('stat-revenue')) el('stat-revenue').textContent = fmt(stats.revenue);
+    if (el('stat-cash'))    el('stat-cash').textContent    = fmt(stats.cash);
+    if (el('stat-card'))    el('stat-card').textContent    = fmt(stats.card);
+    if (el('stat-split'))   el('stat-split').textContent   = fmt(stats.split);
+    if (el('stat-trade'))   el('stat-trade').textContent   = fmt(stats.trade);
+}
+
+// ─────────────────────────────────────────────────────────────
+// FILTER BY PAYMENT METHOD (stat card click)
+// ─────────────────────────────────────────────────────────────
+function filterByMethod(method) {
+    const select = document.getElementById('filter-payment-method');
+    if (select) {
+        select.value = method;
+        select.dispatchEvent(new Event('change'));
+    }
+
+    // Highlight active stat card
+    document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+    if (method) {
+        const card = document.querySelector(`.stat-card[data-stat="${method}"]`);
+        if (card) card.classList.add('active');
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// RECEIPT MODAL — fetch + display + print
+// ─────────────────────────────────────────────────────────────
+// Direct print — no modal, just fetch receipt HTML and print it
+async function openReceiptModal(url) {
+    try {
+        const res  = await fetch(url, { headers: { 'Accept': 'text/html' } });
+        const html = await res.text();
+        const frame = document.getElementById('print-frame');
+        frame.srcdoc = html;
+        frame.onload = () => {
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+        };
+    } catch(e) {
+        console.error('Failed to load receipt:', e);
+    }
+}
+
+function closeReceiptModal() {}
+function printReceipt() {}
