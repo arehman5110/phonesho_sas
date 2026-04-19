@@ -6,6 +6,7 @@ use App\Models\Device;
 use App\Models\DeviceTransaction;
 use App\Models\DevicePayment;
 use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -69,9 +70,14 @@ class BuySellController extends Controller
     public function create()
     {
         $shopId    = auth()->user()->active_shop_id;
-        $brands    = Brand::where('shop_id', $shopId)->active()->ordered()->get();
-        $customers = Customer::forShop($shopId)->orderBy('name')->get(['id','name','phone','email']);
-        return view('buy-sell.create', compact('brands', 'customers'));
+        $brands        = Brand::where('shop_id', $shopId)->active()->ordered()->get();
+        $customers     = Customer::forShop($shopId)->orderBy('name')->get(['id','name','phone','email']);
+        $stockDevices  = Device::forShop($shopId)
+            ->with('brand')
+            ->whereIn('status', ['in_stock','reserved','under_repair','under_diagnostics','offered'])
+            ->orderBy('model_name')
+            ->get();
+        return view('buy-sell.create', compact('brands', 'customers', 'stockDevices'));
     }
 
     // -----------------------------------------------
@@ -95,26 +101,33 @@ class BuySellController extends Controller
         $shopId = auth()->user()->active_shop_id;
 
         $request->validate([
-            'devices'                    => ['required', 'array', 'min:1'],
-            'devices.*.model_name'       => ['required', 'string', 'max:200'],
-            'devices.*.brand_name'       => ['nullable', 'string', 'max:100'],
-            'devices.*.imei'             => ['nullable', 'string', 'max:20', 'unique:devices,imei'],
-            'devices.*.serial_number'    => ['nullable', 'string', 'max:100'],
-            'devices.*.condition'        => ['required', 'in:new,used,faulty,refurbished'],
-            'devices.*.storage'          => ['nullable', 'string', 'max:50'],
-            'devices.*.color'            => ['nullable', 'string', 'max:50'],
-            'devices.*.purchase_price'   => ['required', 'numeric', 'min:0'],
-            'devices.*.selling_price'    => ['nullable', 'numeric', 'min:0'],
-            'devices.*.notes'            => ['nullable', 'string', 'max:1000'],
-            'customer_id'                => ['nullable', 'exists:customers,id'],
-            'payment_method'             => ['required', 'string'],
-            'payment_status'             => ['required', 'in:unpaid,partial,paid'],
+            'devices'                     => ['required', 'array', 'min:1'],
+            'devices.*.device_type'       => ['nullable', 'string', 'max:50'],
+            'devices.*.model_name'        => ['required', 'string', 'max:200'],
+            'devices.*.brand_name'        => ['nullable', 'string', 'max:100'],
+            'devices.*.device_grade'      => ['required', 'string', 'max:50'],
+            'devices.*.imei'              => ['nullable', 'string', 'max:20', 'unique:devices,imei'],
+            'devices.*.serial_number'     => ['nullable', 'string', 'max:100'],
+            'devices.*.condition'         => ['nullable', 'in:new,used,faulty,refurbished'],
+            'devices.*.workflow_status'   => ['nullable', 'string', 'max:50'],
+            'devices.*.lock_status'       => ['nullable', 'string', 'max:50'],
+            'devices.*.storage'           => ['nullable', 'string', 'max:50'],
+            'devices.*.color'             => ['nullable', 'string', 'max:50'],
+            'devices.*.purchase_price'    => ['required', 'numeric', 'min:0'],
+            'devices.*.selling_price'     => ['nullable', 'numeric', 'min:0'],
+            'devices.*.notes'             => ['nullable', 'string', 'max:1000'],
+            'customer_id'                 => ['nullable', 'exists:customers,id'],
+            'payment_status'              => ['required', 'in:unpaid,partial,paid'],
+            'payments'                    => ['nullable', 'array'],
+            'payments.*.method'           => ['required_with:payments', 'string'],
+            'payments.*.amount'           => ['required_with:payments', 'numeric', 'min:0.01'],
+            'payments.*.note'             => ['nullable', 'string', 'max:255'],
         ]);
 
-        $devices        = $request->input('devices');
-        $customerId     = $request->input('customer_id');
-        $paymentMethod  = $request->input('payment_method');
-        $paymentStatus  = $request->input('payment_status');
+        $devices       = $request->input('devices');
+        $customerId    = $request->input('customer_id');
+        $paymentStatus = $request->input('payment_status');
+        $paymentsData  = $request->input('payments', []);
 
         return DB::transaction(function () use ($devices, $customerId, $paymentMethod, $paymentStatus, $shopId) {
             $created = [];
@@ -141,7 +154,7 @@ class BuySellController extends Controller
                     'color'          => $d['color']          ?? null,
                     'purchase_price' => $d['purchase_price'],
                     'selling_price'  => $d['selling_price']  ?? null,
-                    'status'         => 'in_stock',
+                    'status'         => $d['stock_status'] ?? 'in_stock',
                     'notes'          => $d['notes']          ?? null,
                 ]);
 
